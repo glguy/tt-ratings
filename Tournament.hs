@@ -1,36 +1,27 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Tournament where
 
-import Law
-import qualified Data.Map as Map
+import Control.Lens
+import Data.List (foldl')
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
-import Data.List (foldl')
-import Control.Lens
+import Data.Time.Calendar
+import Law
+import qualified Data.Map as Map
 
-type Name = String
-
-data Match = Match { _matchWinner, _matchLoser :: Name }
+data Match name = Match { matchWinner, matchLoser :: name }
   deriving (Eq, Show)
 
-type Tournament = [Match]
+type Tournament name = [Match name]
 
-type Laws = Map Name Law
+type OutcomeMap name = Map name (Map name Outcome)
 
-data Outcome = Outcome { _outcomeWins, _outcomeLoses :: Int }
-  deriving (Eq, Show)
-
-type TournamentSummary = Map Name (Law, Map Name MatchSummary)
+type TournamentSummary name = Map name (Law, Map name MatchSummary)
 
 data MatchSummary = MatchSummary
-  { _adjustedLaw     :: Law
-  , _pointChange     :: Double
-  , _summaryOutcome  :: Outcome
+  { summaryAdjustedLaw  :: Law
+  , summaryPointChange  :: Double
+  , summaryOutcome      :: Outcome
   }
-
-makeLenses ''MatchSummary
-makeLenses ''Match
-makeLenses ''Outcome
 
 -- | Outcome without any wins or loses.
 noOutcome :: Outcome
@@ -40,11 +31,10 @@ noOutcome = Outcome 0 0
 -- is the player's name, the second key is the opponent's
 -- name and the outcome is from the point of view of the
 -- player.
-matchOutcomes :: Tournament -> Map Name (Map Name Outcome)
+matchOutcomes :: Ord name => Tournament name -> OutcomeMap name
 matchOutcomes = foldl' addMatch Map.empty
   where
-  look1 n = at n . defaultEmpty
-  look2 n = at n . non noOutcome
+  look w l = at w . defaultEmpty . at l . non noOutcome
 
   addMatch outcomes match
     = updateWinner match
@@ -52,14 +42,12 @@ matchOutcomes = foldl' addMatch Map.empty
     $ outcomes
 
   updateWinner match
-    = look1 (match^.matchWinner)
-    . look2 (match^.matchLoser)
+    = look (matchWinner match) (matchLoser  match)
     . outcomeWins
     +~ 1
 
   updateLoser match
-    = look1 (match^.matchLoser)
-    . look2 (match^.matchWinner)
+    = look (matchLoser  match) (matchWinner match)
     . outcomeLoses
     +~ 1
 
@@ -67,80 +55,83 @@ matchOutcomes = foldl' addMatch Map.empty
 -- given the tournament information, initial laws, and player\'s
 -- outcomes.
 updatePlayer ::
-  Map Name (Map Name Outcome) {- ^ Outcome map for the tournament -} ->
-  Laws {- ^ Initial laws going into the tournament -} ->
-  Name {- ^ Name of player to update -} ->
-  Map Name Outcome {- ^ outcomes for games played by this player -} ->
-  (Law, Map Name MatchSummary)
+  Ord name =>
+  OutcomeMap name  {- ^ Outcome map for the tournament -} ->
+  Map name Law     {- ^ Initial laws going into the tournament -} ->
+  name             {- ^ Name of player to update -} ->
+  Map name Outcome {- ^ outcomes for games played by this player -} ->
+  (Law, Map name MatchSummary) {- ^ (Final law, Match Summaries) -}
 updatePlayer outcomes laws playerName opponents = (finalLaw, matchSummaries)
   where
-  getLaw n = fromMaybe defaultLaw (view (at n) laws)
+  playerInitialLaw = getLaw playerName laws
 
-  initialLaw = getLaw playerName
-
-  (finalLaw, matchSummaries) = imapAccumL computeMatchSummary initialLaw opponents
+  (finalLaw, matchSummaries) = imapAccumL computeMatchSummary playerInitialLaw opponents
 
   computeMatchSummary opponentName accLaw outcome =
-    ( accLaw'
+    ( lawUpdate u
     , MatchSummary
-        { _adjustedLaw    = adjustedLaw
-        , _pointChange    = computePointChange initialLaw adjustedLaw outcome
-        , _summaryOutcome = outcome
+        { summaryAdjustedLaw    = opponentAdjustedLaw
+        , summaryPointChange    = computePointChange u { playerLaw = playerInitialLaw }
+        , summaryOutcome        = outcome
         })
     where
-    adjustedLaw = computeAdjustedLaw opponentName playerName outcomes laws
-    accLaw' = lawUpdate LawUpdate
-               { playerLaw   = accLaw
-               , opponentLaw = adjustedLaw
-               , playerWins  = outcome^.outcomeWins
-               , playerLoses = outcome^.outcomeLoses
-               }
+    opponentAdjustedLaw = computeAdjustedLaw opponentName playerName outcomes laws
+    u = LawUpdate
+          { playerLaw   = accLaw
+          , opponentLaw = opponentAdjustedLaw
+          , updateOutcome = outcome
+          }
 
 -- | Compute adjusted law by updating the opponents law for all games
 -- which do not include the player.
 computeAdjustedLaw ::
-  Name {- ^ Opponent\'s name -} ->
-  Name {- ^ Player\'s name -} ->
-  Map Name (Map Name Outcome) {- ^ Tournament outcomes -} ->
-  Laws {- ^ Initial laws -} ->
+  Ord name =>
+  name {- ^ Opponent\'s name -} ->
+  name {- ^ Player\'s name -} ->
+  OutcomeMap name {- ^ Tournament outcomes -} ->
+  Map name Law {- ^ Initial laws -} ->
   Law
 computeAdjustedLaw opp player outcomes laws
-  = ifoldl updateOne (getLaw opp) relevantOutcomes
+  = ifoldl updateOne (getLaw opp laws) relevantOutcomes
   where
-  getLaw n = fromMaybe defaultLaw (view (at n) laws)
-
   relevantOutcomes
     = Map.delete player
     $ view (at opp . defaultEmpty) outcomes
 
   updateOne otherPlayer accLaw outcome =
-    lawUpdate LawUpdate{playerLaw   = accLaw
-                       ,opponentLaw = getLaw otherPlayer
-                       ,playerWins  = outcome^.outcomeWins
-                       ,playerLoses = outcome^.outcomeLoses}
+    lawUpdate LawUpdate
+      { playerLaw   = accLaw
+      , opponentLaw = getLaw otherPlayer laws
+      , updateOutcome = outcome
+      }
 
 -- | Estimate the effect that a single pairing had on the player.
 computePointChange ::
-  Law {- ^ Player's initial law -} ->
-  Law {- ^ Opponent's adjusted law -} ->
-  Outcome {- ^ outcome between player and opponent -} ->
+  LawUpdate ->
   Double {- ^ change in points -}
-computePointChange myLaw hisLaw outcome = newMean - oldMean
+computePointChange u = newMean - oldMean
   where
-  (oldMean,_) = lawMeanStddev myLaw
-  (newMean,_) = lawMeanStddev newLaw
+  (oldMean,_) = lawMeanStddev (playerLaw u)
+  (newMean,_) = lawMeanStddev (lawUpdate u)
 
-  newLaw      = lawUpdate LawUpdate
-                  { playerLaw   = myLaw
-                  , opponentLaw = hisLaw
-                  , playerWins  = outcome^.outcomeWins
-                  , playerLoses = outcome^.outcomeLoses
-                  }
+degradeLaw ::
+  Day {- ^ Today -} ->
+  (Day, Law) {- ^ (Last update, law) -} ->
+  Law
+degradeLaw today (lastUpdate, law) = timeEffect days law
+  where
+  days = fromIntegral $ diffDays today lastUpdate
 
-updateLawsForTournament :: Tournament -> Laws -> TournamentSummary
+degradeLaws :: Functor f => Day -> f (Day, Law) -> f Law
+degradeLaws today = fmap (degradeLaw today)
+
+updateLawsForTournament :: Ord name => Tournament name -> Map name Law -> TournamentSummary name
 updateLawsForTournament tournament laws = imap (updatePlayer outcomes laws) outcomes
   where
   outcomes = matchOutcomes tournament
 
-defaultEmpty :: SimpleIso (Maybe (Map Name a)) (Map Name a)
+defaultEmpty :: Simple Iso (Maybe (Map k v)) (Map k v)
 defaultEmpty = anon Map.empty Map.null
+
+getLaw :: Ord name => name -> Map name Law -> Law
+getLaw n laws = fromMaybe defaultLaw (view (at n) laws)

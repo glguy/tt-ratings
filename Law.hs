@@ -1,11 +1,24 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Law where
 
+import Control.Lens
 import Data.Array.Unboxed
 import Data.List
-import Statistics.Distribution
-import Statistics.Distribution.Normal
+import Statistics.Distribution (complCumulative, cumulative)
+import Statistics.Distribution.Normal (normalDistr)
 
 newtype Law = Law (UArray Int Double)
+
+data Outcome = Outcome { _outcomeWins, _outcomeLoses :: Int }
+  deriving (Eq, Show)
+
+makeLenses ''Outcome
+
+data LawUpdate = LawUpdate
+  { playerLaw , opponentLaw :: Law
+  , updateOutcome :: Outcome
+  }
+
 
 -- | Law assigned to unrated players
 defaultLaw :: Law
@@ -27,11 +40,6 @@ lawAt (Law a) i
   | 0 <= i && i <= 3600 && i `mod` 10 == 0 = a ! (i `div` 10)
   | otherwise = error "lawAt: bad index"
 
-data LawUpdate = LawUpdate
-  { playerLaw , opponentLaw :: Law
-  , playerWins, playerLoses :: Int
-  }
-
 -- | Probability of an upset given the difference in two ratings.
 upsetProbability :: Int -> Double
 upsetProbability d = recip (1 + exp (alpha * fromIntegral d))
@@ -39,7 +47,7 @@ upsetProbability d = recip (1 + exp (alpha * fromIntegral d))
   alpha = 0.0148540595817432
 
 lawUpdate :: LawUpdate -> Law
-lawUpdate LawUpdate{playerLaw = lp, opponentLaw = lq, playerWins = w, playerLoses = l}
+lawUpdate LawUpdate{playerLaw = lp, opponentLaw = lq, updateOutcome = outcome}
     = lawFromList
       [ sum [ upsetProbability (q - p) ^ w
             * upsetProbability (p - q) ^ l
@@ -48,6 +56,9 @@ lawUpdate LawUpdate{playerLaw = lp, opponentLaw = lq, playerWins = w, playerLose
             | q <- omega]
       | p <- omega
       ]
+  where
+  w = view outcomeWins outcome
+  l = view outcomeLoses outcome
 
 -- | Generate a discretized normal law given a mean and standard deviation.
 normalLaw ::
@@ -69,7 +80,7 @@ lawMeanStddev :: Law -> (Double,Double)
 lawMeanStddev law = (mean, sqrt variance)
   where
   mean     = sum [ fromIntegral p       * lawAt law p | p <- omega ]
-  variance = sum [ fromIntegral (p ^ 2) * lawAt law p | p <- omega ]
+  variance = sum [ fromIntegral (p * p) * lawAt law p | p <- omega ]
            - mean * mean
 
 -- | Degrade a law given a certain number of days. When days is

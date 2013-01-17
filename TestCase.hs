@@ -10,7 +10,9 @@ import qualified Data.Map as Map
 
 -- Test data based on http://ratingscentral.com/EventDetail.php?EventID=12091
 
-testTournament :: [Match]
+type Name = String
+
+testTournament :: [Match Name]
 testTournament = map (uncurry Match)
   [ ("Beck", "Pike")
   , ("Diatchki", "Ochs")
@@ -94,21 +96,26 @@ formatOutcome outcome = intercalate " , " $ wins ++ loses
 
 showMatchSummary :: Name -> MatchSummary -> String
 showMatchSummary name matchSummary = unlines
-  [ "Name: " ++ name
-  , "Rating: " ++ formatLaw (view adjustedLaw matchSummary)
-  , "Change: " ++ show (round (view pointChange matchSummary))
-  , "Outcome: " ++ formatOutcome (view summaryOutcome matchSummary)
+  [ "Opponent: " ++ name
+  , "Rating: " ++ formatLaw (summaryAdjustedLaw matchSummary)
+  , "Change: " ++ show (round (summaryPointChange matchSummary) :: Integer)
+  , "Outcome: " ++ formatOutcome (summaryOutcome matchSummary)
   ]
 
+-- | Render a string showing the mean and standard deviation of a law.
 formatLaw :: Law -> String
-formatLaw law = show (round mean) ++ "±" ++ show (round stddev)
+formatLaw law = show (round mean :: Integer) ++ "±" ++ show (round stddev :: Integer)
   where
   (mean,stddev) = lawMeanStddev law
 
-formatLawChange :: Law -> Law -> String
+-- | Render the change between an old law and a new law.
+formatLawChange ::
+  Law {- ^ Old law -} ->
+  Law {- ^ New law -} ->
+  String
 formatLawChange old new =
   formatLaw old
-  ++ " + " ++ show (round mean2 - round mean1) ++ " = " 
+  ++ " + " ++ show (round mean2 - round mean1 :: Integer) ++ " = " 
   ++ formatLaw new
   where
   (mean1,_) = lawMeanStddev old
