@@ -1,11 +1,16 @@
 module Main where
+
 import Control.Lens
-import Tournament
-import Law
 import Data.List
+import Data.Map (Map)
 import Data.Maybe
+import Law
+import Tournament
 import qualified Data.Map as Map
 
+-- Test data based on http://ratingscentral.com/EventDetail.php?EventID=12091
+
+testTournament :: [Match]
 testTournament = map (uncurry Match)
   [ ("Beck", "Pike")
   , ("Diatchki", "Ochs")
@@ -49,6 +54,7 @@ testTournament = map (uncurry Match)
   , ("Sullivan", "Ghosh")
   ]
 
+testLaws :: Map Name Law
 testLaws = Map.fromList
   [("Beck", normalLaw 741 26)
   ,("Diatchki", normalLaw 737 30)
@@ -119,5 +125,3 @@ main = do
         putStrLn ""
         ifor_ summaries $ \i summary ->
           putStrLn $ showMatchSummary i summary
-
-

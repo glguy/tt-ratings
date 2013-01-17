@@ -63,6 +63,9 @@ matchOutcomes = foldl' addMatch Map.empty
     . outcomeLoses
     +~ 1
 
+-- | Compute a final law and match summary set for a player
+-- given the tournament information, initial laws, and player\'s
+-- outcomes.
 updatePlayer ::
   Map Name (Map Name Outcome) {- ^ Outcome map for the tournament -} ->
   Laws {- ^ Initial laws going into the tournament -} ->
@@ -78,7 +81,7 @@ updatePlayer outcomes laws playerName opponents = (finalLaw, matchSummaries)
   (finalLaw, matchSummaries) = imapAccumL computeMatchSummary initialLaw opponents
 
   computeMatchSummary opponentName accLaw outcome =
-    ( finalLaw
+    ( accLaw'
     , MatchSummary
         { _adjustedLaw    = adjustedLaw
         , _pointChange    = computePointChange initialLaw adjustedLaw outcome
@@ -86,7 +89,7 @@ updatePlayer outcomes laws playerName opponents = (finalLaw, matchSummaries)
         })
     where
     adjustedLaw = computeAdjustedLaw opponentName playerName outcomes laws
-    finalLaw = lawUpdate LawUpdate
+    accLaw' = lawUpdate LawUpdate
                { playerLaw   = accLaw
                , opponentLaw = adjustedLaw
                , playerWins  = outcome^.outcomeWins
