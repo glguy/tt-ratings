@@ -23,7 +23,7 @@ data Outcome = Outcome { _outcomeWins, _outcomeLoses :: Int }
 type TournamentSummary = Map Name (Law, Map Name MatchSummary)
 
 data MatchSummary = MatchSummary
-  { _updatedLaw      :: Law
+  { _adjustedLaw     :: Law
   , _pointChange     :: Double
   , _summaryOutcome  :: Outcome
   }
@@ -63,56 +63,76 @@ matchOutcomes = foldl' addMatch Map.empty
     . outcomeLoses
     +~ 1
 
-updatePlayer :: Map Name (Map Name Outcome) -> Laws -> Name -> Map Name Outcome -> (Law, Map Name MatchSummary)
-updatePlayer outcomes laws player opponents = (myNewLaw, matchSummaries)
+updatePlayer ::
+  Map Name (Map Name Outcome) {- ^ Outcome map for the tournament -} ->
+  Laws {- ^ Initial laws going into the tournament -} ->
+  Name {- ^ Name of player to update -} ->
+  Map Name Outcome {- ^ outcomes for games played by this player -} ->
+  (Law, Map Name MatchSummary)
+updatePlayer outcomes laws playerName opponents = (finalLaw, matchSummaries)
   where
   getLaw n = fromMaybe defaultLaw (view (at n) laws)
 
-  myLaw = getLaw player
+  initialLaw = getLaw playerName
 
-  matchSummaries = imap computeMatchSummary opponents
+  (finalLaw, matchSummaries) = imapAccumL computeMatchSummary initialLaw opponents
 
-  myNewLaw = ifoldl (\opp acc summary -> lawUpdate
-                         LawUpdate{playerLaw   = acc
-                                  ,opponentLaw = summary^.updatedLaw
-                                  ,playerWins  = summary^.summaryOutcome.outcomeWins
-                                  ,playerLoses = summary^.summaryOutcome.outcomeLoses})
-                     myLaw matchSummaries
-               
-  computeMatchSummary opp outcome =
-    MatchSummary
-      { _updatedLaw  = updatedLaw
-      , _pointChange = computePointChange myNewLaw updatedLaw outcome
-      , _summaryOutcome = outcome
-      }
+  computeMatchSummary opponentName accLaw outcome =
+    ( finalLaw
+    , MatchSummary
+        { _adjustedLaw    = adjustedLaw
+        , _pointChange    = computePointChange initialLaw adjustedLaw outcome
+        , _summaryOutcome = outcome
+        })
     where
-    updatedLaw = computeUpdatedLaw opp player outcomes laws
+    adjustedLaw = computeAdjustedLaw opponentName playerName outcomes laws
+    finalLaw = lawUpdate LawUpdate
+               { playerLaw   = accLaw
+               , opponentLaw = adjustedLaw
+               , playerWins  = outcome^.outcomeWins
+               , playerLoses = outcome^.outcomeLoses
+               }
 
-computeUpdatedLaw :: Name -> Name -> Map Name (Map Name Outcome) -> Laws -> Law
-computeUpdatedLaw opp player outcomes laws = ifoldl updateOne (getLaw opp) relevantOutcomes
+-- | Compute adjusted law by updating the opponents law for all games
+-- which do not include the player.
+computeAdjustedLaw ::
+  Name {- ^ Opponent\'s name -} ->
+  Name {- ^ Player\'s name -} ->
+  Map Name (Map Name Outcome) {- ^ Tournament outcomes -} ->
+  Laws {- ^ Initial laws -} ->
+  Law
+computeAdjustedLaw opp player outcomes laws
+  = ifoldl updateOne (getLaw opp) relevantOutcomes
   where
   getLaw n = fromMaybe defaultLaw (view (at n) laws)
+
   relevantOutcomes
-    = set (at player) Nothing
+    = Map.delete player
     $ view (at opp . defaultEmpty) outcomes
 
-  updateOne otherPlayer law outcome =
-    lawUpdate LawUpdate{playerLaw   = law
+  updateOne otherPlayer accLaw outcome =
+    lawUpdate LawUpdate{playerLaw   = accLaw
                        ,opponentLaw = getLaw otherPlayer
                        ,playerWins  = outcome^.outcomeWins
                        ,playerLoses = outcome^.outcomeLoses}
 
-computePointChange :: Law -> Law -> Outcome -> Double
+-- | Estimate the effect that a single pairing had on the player.
+computePointChange ::
+  Law {- ^ Player's initial law -} ->
+  Law {- ^ Opponent's adjusted law -} ->
+  Outcome {- ^ outcome between player and opponent -} ->
+  Double {- ^ change in points -}
 computePointChange myLaw hisLaw outcome = newMean - oldMean
   where
   (oldMean,_) = lawMeanStddev myLaw
   (newMean,_) = lawMeanStddev newLaw
 
-  newLaw = lawUpdate LawUpdate{playerLaw   = myLaw
-                              ,opponentLaw = hisLaw
-                              ,playerWins  = outcome^.outcomeWins
-                              ,playerLoses = outcome^.outcomeLoses}
-
+  newLaw      = lawUpdate LawUpdate
+                  { playerLaw   = myLaw
+                  , opponentLaw = hisLaw
+                  , playerWins  = outcome^.outcomeWins
+                  , playerLoses = outcome^.outcomeLoses
+                  }
 
 updateLawsForTournament :: Tournament -> Laws -> TournamentSummary
 updateLawsForTournament tournament laws = imap (updatePlayer outcomes laws) outcomes

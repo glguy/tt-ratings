@@ -1,6 +1,8 @@
 import Control.Lens
 import Tournament
 import Law
+import Data.List
+import Data.Maybe
 import qualified Data.Map as Map
 
 testTournament = map (uncurry Match)
@@ -72,17 +74,31 @@ testLaws = Map.fromList
   ,("Xiao", normalLaw 429 53)
   ]
 
+formatOutcome :: Outcome -> String
+formatOutcome outcome = intercalate " , " $ wins ++ loses
+  where
+  wins
+    | view outcomeWins outcome > 0 = ["Wins: " ++ show (view outcomeWins outcome)]
+    | otherwise = []
+  loses
+    | view outcomeLoses outcome > 0 = ["Loses: " ++ show (view outcomeLoses outcome)]
+    | otherwise = []
+
+
+showMatchSummary :: Name -> MatchSummary -> String
 showMatchSummary name matchSummary = unlines
   [ "Name: " ++ name
-  , "Rating: " ++ formatLaw (matchSummary^.updatedLaw)
-  , "Change: " ++ show (round (matchSummary^.pointChange))
+  , "Rating: " ++ formatLaw (view adjustedLaw matchSummary)
+  , "Change: " ++ show (round (view pointChange matchSummary))
+  , "Outcome: " ++ formatOutcome (view summaryOutcome matchSummary)
   ]
 
-formatLaw law =
-  show (round mean) ++ "±" ++ show (round stddev)
+formatLaw :: Law -> String
+formatLaw law = show (round mean) ++ "±" ++ show (round stddev)
   where
   (mean,stddev) = lawMeanStddev law
 
+formatLawChange :: Law -> Law -> String
 formatLawChange old new =
   formatLaw old
   ++ " + " ++ show (round mean2 - round mean1) ++ " = " 
@@ -91,12 +107,15 @@ formatLawChange old new =
   (mean1,_) = lawMeanStddev old
   (mean2,_) = lawMeanStddev new
 
-main = ifor_ (updateLawsForTournament testTournament testLaws)
-     $ \who (law, summaries) ->
+main :: IO ()
+main = do
+  let results = updateLawsForTournament testTournament testLaws
+  ifor_ results $ \who (newLaw, summaries) ->
      do putStrLn "=================="
         putStrLn who
-        let Just oldlaw = testLaws ^. at who
-        putStrLn $ formatLawChange oldlaw law
+        let oldLaw = fromMaybe defaultLaw $ view (at who) testLaws
+        putStrLn $ formatLawChange oldLaw newLaw
+        putStrLn ""
         ifor_ summaries $ \i summary ->
           putStrLn $ showMatchSummary i summary
 
