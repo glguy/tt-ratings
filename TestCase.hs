@@ -1,3 +1,4 @@
+module Main where
 import Control.Lens
 import Tournament
 import Law

@@ -54,10 +54,12 @@ normalLaw ::
    Double {- ^ mean -} ->
    Double {- ^ standard deviation -} ->
    Law
-normalLaw mean stddev
-  = lawFromList
-  $ c 5 : [ c (p+5) - c (p-5) | p <- omega \\ [0,3600] ]
- ++ [ complCumulative distr 3595 ]
+normalLaw mean stddev = lawFromList $ mkNormal 0 3600 mean stddev
+
+mkNormal :: Int -> Int -> Double -> Double -> [Double]
+mkNormal lo hi mean stddev =
+  c (lo + 5) : [ c (p+5) - c (p-5) | p <- [lo+10, lo+20 .. hi - 10]]
+ ++ [ complCumulative distr (fromIntegral hi - 5) ]
   where
   distr = normalDistr mean stddev
   c     = cumulative distr . fromIntegral
@@ -69,3 +71,18 @@ lawMeanStddev law = (mean, sqrt variance)
   mean     = sum [ fromIntegral p       * lawAt law p | p <- omega ]
   variance = sum [ fromIntegral (p ^ 2) * lawAt law p | p <- omega ]
            - mean * mean
+
+-- | Degrade a law given a certain number of days. When days is
+-- less than 1, no degrading is done.
+timeEffect :: Int -> Law -> Law
+timeEffect days law
+  | days <= 0 = law
+  | otherwise = lawFromList
+              $ sum [ lawAt law x * timeAt y | x <- omega, y <- [-3600,-3590.. -x]]
+              : [ sum [ lawAt law x * timeAt (r - x) | x <- omega ]
+                | r <- omega \\ [0,3600] ]
+             ++ [ sum [lawAt law x * timeAt y | x <- omega, y <- [3600-x,3610-x..3600]] ]
+  where
+  timeArray :: UArray Int Double
+  timeArray = listArray (-360,360) $ mkNormal (-3600) 3600 0 (70 * fromIntegral days / 365)
+  timeAt y = timeArray ! (y `div` 10)
