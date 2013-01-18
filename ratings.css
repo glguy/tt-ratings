@@ -1,0 +1,32 @@
+body {
+ text-align: center;
+ background-color: rgb(220,230,255);
+}
+
+table {
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+th {
+  background-color: rgb(167, 201, 66);
+  border-left: 1px solid white;
+  color: white;
+  padding-left: 0.3em;
+  padding-right: 0.3em;
+}
+
+td {
+        border: 1px solid rgb(152, 191, 33);
+        padding: 2px;
+  padding-left: 1em;
+  padding-right: 1em;
+  background-color: white;
+  text-align: left;
+
+}
+
+tr.alt td {
+  background-color: rgb(234, 242, 211);
+}
