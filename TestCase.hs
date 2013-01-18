@@ -1,15 +1,18 @@
 module Main where
 
+import LawSerialization
+import Data.Foldable hiding (sum)
 import Control.Lens
-import Data.List
 import Data.Map (Map)
 import Data.Maybe
+import Data.Time.Calendar (fromGregorian)
 import Law
 import System.IO
 import Text.XHtml
 import Tournament
 import TournamentSummaryHtml
 import qualified Data.Map as Map
+import Data.Array.Unboxed
 
 -- Test data based on http://ratingscentral.com/EventDetail.php?EventID=12091
 
@@ -106,5 +109,15 @@ main = do
         ifor_ summaries $ \i summary ->
           putStrLn $ showMatchSummary i summary
 
-  writeFile "ratings.html"    $ renderHtml $ ratingsHtml testLaws
-  writeFile "tournament.html" $ renderHtml $ tournamentHtml testLaws results
+  let tournamentDay = fromGregorian 2013 1 20
+
+  writeFile "ratings.html"    $ renderHtml $ ratingsHtml $ fmap ((,)tournamentDay) testLaws
+  writeFile "tournament.html" $ renderHtml $ tournamentHtml testLaws tournamentDay results
+
+  writeFile "ratings.csv" $ serializeLaws
+     $ Map.fromList $ itoList $ map (\x -> (tournamentDay, fst x))$ Map.elems results
+
+
+checkLaw law = lawError law (normalLaw (lawMean law)(lawStddev law))
+
+lawError a b = sum (zipWith (\x y -> abs (x-y)) (elems (lawRaw a)) (elems (lawRaw b)))

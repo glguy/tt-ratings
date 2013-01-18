@@ -102,3 +102,6 @@ lawScore law = lawMean law - 2 * lawStddev law
 
 lawIsRated :: Law -> Bool
 lawIsRated l = lawStddev l < 100
+
+lawElems :: Law -> [Double]
+lawElems = elems . lawRaw

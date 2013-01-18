@@ -1,10 +1,14 @@
+{-# LANGUAGE DeriveFunctor #-}
 module Tournament where
 
+import Control.Applicative
+import Control.Monad ((<=<))
 import Control.Lens
 import Data.List (foldl')
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
+import Data.Traversable
 import Law
 import qualified Data.Map as Map
 
@@ -135,3 +139,10 @@ defaultEmpty = anon Map.empty Map.null
 
 getLaw :: Ord name => name -> Map name Law -> Law
 getLaw n laws = fromMaybe defaultLaw (view (at n) laws)
+
+rekeyMap :: (Ord a, Ord b, Applicative f) => (a -> f b) -> Map a v -> f (Map b v)
+rekeyMap f = fmap Map.fromList . (traverse . _1) f . Map.toList
+
+tournamentNameTraversal :: (Ord a, Ord b, Monad f, Applicative f) =>
+  (a -> f b) -> TournamentSummary a -> f (TournamentSummary b)
+tournamentNameTraversal f = (traverse . _2) (rekeyMap f) <=< rekeyMap f
