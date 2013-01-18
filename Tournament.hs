@@ -71,7 +71,10 @@ updatePlayer outcomes laws playerName opponents = (finalLaw, matchSummaries)
     ( lawUpdate u
     , MatchSummary
         { summaryAdjustedLaw    = opponentAdjustedLaw
-        , summaryPointChange    = computePointChange u { playerLaw = playerInitialLaw }
+        , summaryPointChange    = computePointChange LawUpdate
+                                    { playerLaw = playerInitialLaw
+                                    , opponentLaw = opponentAdjustedLaw
+                                    , updateOutcome = outcome }
         , summaryOutcome        = outcome
         })
     where
@@ -109,10 +112,7 @@ computeAdjustedLaw opp player outcomes laws
 computePointChange ::
   LawUpdate ->
   Double {- ^ change in points -}
-computePointChange u = newMean - oldMean
-  where
-  (oldMean,_) = lawMeanStddev (playerLaw u)
-  (newMean,_) = lawMeanStddev (lawUpdate u)
+computePointChange u = lawMean (lawUpdate u) - lawMean (playerLaw u)
 
 degradeLaw ::
   Day {- ^ Today -} ->

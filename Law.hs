@@ -7,7 +7,8 @@ import Data.List
 import Statistics.Distribution (complCumulative, cumulative)
 import Statistics.Distribution.Normal (normalDistr)
 
-newtype Law = Law (UArray Int Double)
+data Law = Law { lawRaw :: !(UArray Int Double)
+               , lawMean, lawStddev :: !Double }
 
 data Outcome = Outcome { _outcomeWins, _outcomeLoses :: Int }
   deriving (Eq, Show)
@@ -31,13 +32,19 @@ omega = [0,10..3600]
 -- | Generate a normalized law from a list of probabilities
 -- which correspond to the elements of 'omega'.
 lawFromList :: [Double] -> Law
-lawFromList xs = Law $ listArray (0,360) $ fmap (/ sum xs) xs
+lawFromList xs = Law (listArray (0,360) normalized) mean (sqrt variance)
+  where
+  normalized = fmap (/ sum xs) xs
+  mean     = sum [ fromIntegral p       * x | (p,x) <- zip omega normalized ]
+  variance = sum [ fromIntegral (p * p) * x | (p,x) <- zip omega normalized ]
+           - mean * mean
+
 
 -- | Find the probability that the score is in the range of
 -- [i-5,i+5] given a law.
 lawAt :: Law -> Int -> Double
-lawAt (Law a) i
-  | 0 <= i && i <= 3600 && i `mod` 10 == 0 = a ! (i `div` 10)
+lawAt law i
+  | 0 <= i && i <= 3600 && i `mod` 10 == 0 = lawRaw law ! (i `div` 10)
   | otherwise = error "lawAt: bad index"
 
 -- | Probability of an upset given the difference in two ratings.
@@ -75,14 +82,6 @@ mkNormal lo hi mean stddev =
   distr = normalDistr mean stddev
   c     = cumulative distr . fromIntegral
 
--- | Compute the mean and standard deviation of a player's law.
-lawMeanStddev :: Law -> (Double,Double)
-lawMeanStddev law = (mean, sqrt variance)
-  where
-  mean     = sum [ fromIntegral p       * lawAt law p | p <- omega ]
-  variance = sum [ fromIntegral (p * p) * lawAt law p | p <- omega ]
-           - mean * mean
-
 -- | Degrade a law given a certain number of days. When days is
 -- less than 1, no degrading is done.
 timeEffect :: Int -> Law -> Law
@@ -97,3 +96,9 @@ timeEffect days law
   timeArray :: UArray Int Double
   timeArray = listArray (-360,360) $ mkNormal (-3600) 3600 0 (70 * fromIntegral days / 365)
   timeAt y = timeArray ! (y `div` 10)
+
+lawScore :: Law -> Double
+lawScore law = lawMean law - 2 * lawStddev law
+
+lawIsRated :: Law -> Bool
+lawIsRated l = lawStddev l < 100

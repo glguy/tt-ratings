@@ -1,0 +1,57 @@
+body {
+  background-color: rgb(220,230,255);
+}
+
+h1 {
+        text-align: center;
+}
+
+table.results {
+ width: 100%;
+}
+
+table.results > tbody > tr > td {
+  vertical-align: top;
+  text-align: center;
+  padding: 0.5em;
+}
+
+div.resultbox span.playername {
+  display: block;
+  font-size: larger;
+  font-weight: bold;
+}
+
+div.resultbox table {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+  border-collapse: collapse;
+}
+
+div.resultbox table th {
+  background-color: rgb(167, 201, 66);
+  border-left: 1px solid white;
+  color: white;
+}
+div.resultbox table td {
+        border: 1px solid rgb(152, 191, 33);
+        padding: 2px;
+}
+
+div.resultbox table th {
+  padding-left: 0.3em;
+  padding-right: 0.3em;
+}
+
+div.resultbox table tr td {
+  background-color: white;
+}
+
+div.resultbox table tr.alt td {
+  background-color: rgb(234, 242, 211);
+}
+
+table.matchbox > tbody > tr > td {
+  text-align: left
+}

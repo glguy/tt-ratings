@@ -5,7 +5,10 @@ import Data.List
 import Data.Map (Map)
 import Data.Maybe
 import Law
+import System.IO
+import Text.XHtml
 import Tournament
+import TournamentSummaryHtml
 import qualified Data.Map as Map
 
 -- Test data based on http://ratingscentral.com/EventDetail.php?EventID=12091
@@ -83,17 +86,6 @@ testLaws = Map.fromList
   ,("Xiao", normalLaw 429 53)
   ]
 
-formatOutcome :: Outcome -> String
-formatOutcome outcome = intercalate " , " $ wins ++ loses
-  where
-  wins
-    | view outcomeWins outcome > 0 = ["Wins: " ++ show (view outcomeWins outcome)]
-    | otherwise = []
-  loses
-    | view outcomeLoses outcome > 0 = ["Loses: " ++ show (view outcomeLoses outcome)]
-    | otherwise = []
-
-
 showMatchSummary :: Name -> MatchSummary -> String
 showMatchSummary name matchSummary = unlines
   [ "Opponent: " ++ name
@@ -101,25 +93,6 @@ showMatchSummary name matchSummary = unlines
   , "Change: " ++ show (round (summaryPointChange matchSummary) :: Integer)
   , "Outcome: " ++ formatOutcome (summaryOutcome matchSummary)
   ]
-
--- | Render a string showing the mean and standard deviation of a law.
-formatLaw :: Law -> String
-formatLaw law = show (round mean :: Integer) ++ "±" ++ show (round stddev :: Integer)
-  where
-  (mean,stddev) = lawMeanStddev law
-
--- | Render the change between an old law and a new law.
-formatLawChange ::
-  Law {- ^ Old law -} ->
-  Law {- ^ New law -} ->
-  String
-formatLawChange old new =
-  formatLaw old
-  ++ " + " ++ show (round mean2 - round mean1 :: Integer) ++ " = " 
-  ++ formatLaw new
-  where
-  (mean1,_) = lawMeanStddev old
-  (mean2,_) = lawMeanStddev new
 
 main :: IO ()
 main = do
@@ -132,3 +105,6 @@ main = do
         putStrLn ""
         ifor_ summaries $ \i summary ->
           putStrLn $ showMatchSummary i summary
+
+  writeFile "ratings.html"    $ renderHtml $ ratingsHtml testLaws
+  writeFile "tournament.html" $ renderHtml $ tournamentHtml testLaws results
