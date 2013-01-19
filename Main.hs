@@ -1,6 +1,7 @@
 module Main where
 
 import Law
+import GraphData
 import Tournament
 import TournamentSummaryHtml
 import LawSerialization
@@ -31,6 +32,7 @@ main = do
   writeFile ratingsFn $ ratingsHtml (nameMap playerMap newLaws)
   writeFile resultsFn $ tournamentHtml (nameMap playerMap degradedLaws) day namedResults
   writeFile newLawsFn $ serializeLaws newLaws
+  writeFile "graph.js" $ generateSimpleFlotData $ nameMap playerMap $ fmap snd newLaws
 
 
 loadPlayerMap = do

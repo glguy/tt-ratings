@@ -23,7 +23,7 @@ data LawUpdate = LawUpdate
 
 -- | Law assigned to unrated players
 defaultLaw :: Law
-defaultLaw = normalLaw 1400 450
+defaultLaw = normalLaw 1800 450
 
 -- | The list of discrete scores characterized by a law
 omega :: [Int]
@@ -101,7 +101,7 @@ lawScore :: Law -> Double
 lawScore law = lawMean law - 2 * lawStddev law
 
 lawIsRated :: Law -> Bool
-lawIsRated l = lawStddev l < 100
+lawIsRated l = lawStddev l < 500
 
 lawElems :: Law -> [Double]
 lawElems = elems . lawRaw
