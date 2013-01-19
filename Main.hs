@@ -29,7 +29,7 @@ main = do
 
   namedResults <- nameResults playerMap results
 
-  writeFile ratingsFn $ ratingsHtml (nameMap playerMap newLaws)
+  writeFile ratingsFn $ ratingsHtml $ nameMap playerMap newLaws
   writeFile resultsFn $ tournamentHtml (nameMap playerMap degradedLaws) day namedResults
   writeFile newLawsFn $ serializeLaws newLaws
   writeFile "graph.js" $ generateSimpleFlotData $ nameMap playerMap $ fmap snd newLaws

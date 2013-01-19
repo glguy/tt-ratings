@@ -19,23 +19,51 @@ ratingsHtml laws = renderHtml
   [ header <<
     [ thetitle << "Ratings"
     , thelink ! [rel "stylesheet", thetype "text/css", href "ratings.css" ] << noHtml
+    , script ! [thetype "text/javascript", src "flot/jquery.js"] << noHtml
+    , script ! [thetype "text/javascript", src "flot/jquery.flot.js"] << noHtml
+    , script ! [thetype "text/javascript"]
+       << primHtml (graphScript $ map (snd.snd) ordered)
     ]
-  , body <<
-    [ h1 << "Rated Players"
-    , ratingsTable byScore rated
-    , h1 << "Unrated Players"
-    , ratingsTable byName unrated
+  , body ! [htmlAttr "onload" (primHtml "drawGraphs()")]
+    <<
+    [ h1 << "Ratings"
+    , ratingsTable ordered
     ]
   ]
   where
-  (rated, unrated) = Map.partition (lawIsRated . snd) laws
   byScore = flip (comparing (lawScore . snd . snd))
-  byName  = comparing fst
+  ordered = sortBy byScore $ Map.toList laws
 
-ratingsTable :: ((String, (Day, Law)) -> (String, (Day, Law)) -> Ordering) -> Map String (Day, Law) -> Html
-ratingsTable metric laws = table <<
-  [ tr << [ th << "Player", th << "Rating", th << "Metric", th << "Last played" ]
-  , ifoldMap ratingRow ordered
+graphScript laws
+  = unlines
+  $ "function drawGraphs() {"
+  : imap drawOne laws
+ ++ ["}"]
+  where
+  drawOne i law = "$.plot($(\"#graph"++show i++"\"), [" ++ show dat ++ "]," ++ options++ ");"
+    where
+    dat = map (\x -> [x,0]) [mkLo law, mkLoMid law, lawMean law, mkHiMid law, mkHi law]
+  mkLo law = lawMean law - 2 * lawStddev law
+  mkLoMid law = lawMean law - lawStddev law
+  mkHiMid law = lawMean law + lawStddev law
+  mkHi law = lawMean law + 2 * lawStddev law
+  minVal = minimum $ map mkLo laws
+  maxVal = maximum $ map mkHi laws
+  options =
+    unlines ["{"
+            ," xaxis: { min: " ++ show minVal ++ ", max: " ++ show maxVal ++  " , show: false },"
+            ," yaxis: { show: false },"
+            ," margin: { top: 0, left: 0, right: 0, bottom: 0 },"
+            ," lines: { show: true },"
+            ," points: { show: true, symbol: \"circle\" },"
+            ," colors: [\"red\"]"
+            ,"}"
+            ]
+
+ratingsTable laws = table <<
+  [ tr << [ th << "Player", th << "Rating", th << "Metric", th << "Last played"
+          , th << "Graph" ]
+  , ifoldMap ratingRow laws
   ]
   where
   ratingRow i (name,(day,law)) =
@@ -46,9 +74,9 @@ ratingsTable metric laws = table <<
     [ td << name
     , td << formatLaw law
     , td << showRound (lawScore law)
-    , td << show day
+    , td << formatShortDay day
+    , td << thediv ! [theclass "bargraph", identifier ("graph"++show i)] << noHtml
     ]
-  ordered = sortBy metric $ Map.toList laws
 
 
 tournamentHtml :: Map String Law -> Day -> TournamentSummary String -> String
@@ -57,13 +85,19 @@ tournamentHtml laws day results = renderHtml
     [ thetitle << title
     , thelink ! [rel "stylesheet", thetype "text/css", href "results.css" ] << noHtml
     ]
-  , body <<
+  , body
+    <<
     [ h1 << title
     , tournamentTable laws results
     ]
   ]
   where
   title = formatTournamentTitle day
+
+formatShortDay :: Day -> String
+formatShortDay day = formatShortMonth m ++ " " ++ show d
+  where
+  (_,m,d) = toGregorian day
 
 formatTournamentTitle :: Day -> String
 formatTournamentTitle day
@@ -75,7 +109,26 @@ formatTournamentTitle day
   (yearNum,monthNum,dayNum) = toGregorian day
   (_,_,weekdayNum) = toWeekDate day
 
-  month = case monthNum of
+  month = formatMonth monthNum
+  weekday = formatWeekday weekdayNum
+
+formatShortMonth :: Int -> String
+formatShortMonth m = case m of
+    1 -> "Jan"
+    2 -> "Feb"
+    3 -> "Mar"
+    4 -> "Apr"
+    5 -> "May"
+    6 -> "Jun"
+    7 -> "Jul"
+    8 -> "Aug"
+    9 -> "Sep"
+    10 -> "Oct"
+    11 -> "Nov"
+    12 -> "Dec"
+
+formatMonth :: Int -> String
+formatMonth m = case m of
     1 -> "January"
     2 -> "February"
     3 -> "March"
@@ -89,7 +142,8 @@ formatTournamentTitle day
     11 -> "November"
     12 -> "December"
 
-  weekday = case weekdayNum of
+formatWeekday :: Int -> String
+formatWeekday w = case w of
     1 -> "Monday"
     2 -> "Tuesday"
     3 -> "Wednesday"
