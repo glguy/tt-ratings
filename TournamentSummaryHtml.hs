@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 module TournamentSummaryHtml where
 
 import Law
@@ -7,40 +8,69 @@ import Data.Ord (comparing)
 import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate
 import Tournament
-import Text.XHtml
+import Text.Hamlet (Html, shamlet)
 import Control.Lens
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Text.Blaze.Html.Renderer.String (renderHtml)
+import Text.Blaze.Html (preEscapedToHtml)
 
 tournamentColumns = 4
 
-ratingsHtml :: Map String (Day, Law) -> String
-ratingsHtml laws = renderHtml
-  [ header <<
-    [ thetitle << "Ratings"
-    , thelink ! [rel "stylesheet", thetype "text/css", href "ratings.css" ] << noHtml
-    , script ! [thetype "text/javascript", src "flot/jquery.js"] << noHtml
-    , script ! [thetype "text/javascript", src "flot/jquery.flot.js"] << noHtml
-    , script ! [thetype "text/javascript"]
-       << primHtml (graphScript $ map (snd.snd) ordered)
-    ]
-  , body ! [htmlAttr "onload" (primHtml "drawGraphs()")]
-    <<
-    [ h1 << "Ratings"
-    , ratingsTable ordered
-    ]
-  ]
+data RatingsRow = RatingsRow
+  { rowName :: String
+  , rowLaw  :: Law
+  , rowDay  :: Day
+  , rowIndex :: Int
+  }
+
+ratingsHtml :: Map String (Day,Law) -> String
+ratingsHtml laws = renderHtml [shamlet|
+$doctype 5
+<html>
+  <head>
+    <meta charset=utf-8>
+    <title>Ratings
+    <link rel=stylesheet href=ratings.css>
+    <script language=javascript src=flot/jquery.js>
+    <script language=javascript src=flot/jquery.flot.js>
+    <script language=javascript>#{preEscapedToHtml $ graphScript $ map rowLaw rows}
+  <body onload="drawGraphs()">
+    <h1>Ratings
+    <table>
+      <tr>
+        <th>Player
+        <th>Rating
+        <th>Metric
+        <th>Last played
+        <th>Graph
+      $forall row <- rows
+        <tr :(odd (rowIndex row)):.alt>
+          <td>#{rowName row}
+          <td>#{formatLaw $ rowLaw row}
+          <td>#{showRound $ lawScore $ rowLaw row}
+          <td>#{formatShortDay $ rowDay row}
+          <td>
+            <div .bargraph #graph#{rowIndex row}>
+  |]
   where
-  byScore = flip (comparing (lawScore . snd . snd))
-  ordered = sortBy byScore $ Map.toList laws
+  byScore     = flip (comparing (lawScore . snd . snd))
+  rows        = imap mkRow $ sortBy byScore $ Map.toList laws
+  mkRow i (name,(day,law)) = RatingsRow
+    { rowName = name
+    , rowLaw  = law
+    , rowDay  = day
+    , rowIndex = i
+    }
 
 graphScript laws
   = unlines
   $ "function drawGraphs() {"
-  : imap drawOne laws
+  : options
+  ++ imap drawOne laws
  ++ ["}"]
   where
-  drawOne i law = "$.plot($(\"#graph"++show i++"\"), [" ++ show dat ++ "]," ++ options++ ");"
+  drawOne i law = "$.plot($(\"#graph"++show i++"\"), [" ++ show dat ++ "], options);"
     where
     dat = map (\x -> [x,0]) [mkLo law, mkLoMid law, lawMean law, mkHiMid law, mkHi law]
   mkLo law = lawMean law - 2 * lawStddev law
@@ -50,47 +80,28 @@ graphScript laws
   minVal = minimum $ map mkLo laws
   maxVal = maximum $ map mkHi laws
   options =
-    unlines ["{"
+    ["var options = {"
             ," xaxis: { min: " ++ show minVal ++ ", max: " ++ show maxVal ++  " , show: false },"
             ," yaxis: { show: false },"
             ," margin: { top: 0, left: 0, right: 0, bottom: 0 },"
             ," lines: { show: true },"
             ," points: { show: true, symbol: \"circle\" },"
             ," colors: [\"red\"]"
-            ,"}"
+            ,"};"
             ]
 
-ratingsTable laws = table <<
-  [ tr << [ th << "Player", th << "Rating", th << "Metric", th << "Last played"
-          , th << "Graph" ]
-  , ifoldMap ratingRow laws
-  ]
-  where
-  ratingRow i (name,(day,law)) =
-    let classes
-          | even i = []
-          | otherwise = [theclass "alt"]
-    in tr ! classes <<
-    [ td << name
-    , td << formatLaw law
-    , td << showRound (lawScore law)
-    , td << formatShortDay day
-    , td << thediv ! [theclass "bargraph", identifier ("graph"++show i)] << noHtml
-    ]
-
-
 tournamentHtml :: Map String Law -> Day -> TournamentSummary String -> String
-tournamentHtml laws day results = renderHtml
-  [ header <<
-    [ thetitle << title
-    , thelink ! [rel "stylesheet", thetype "text/css", href "results.css" ] << noHtml
-    ]
-  , body
-    <<
-    [ h1 << title
-    , tournamentTable laws results
-    ]
-  ]
+tournamentHtml laws day results = renderHtml [shamlet|
+$doctype 5
+<html>
+  <head>
+    <meta charset=utf-8>
+    <title>#{title}
+    <link rel=stylesheet type=text/css href=results.css>
+  <body>
+    <h1>#{title}
+    ^{tournamentTable laws results}
+|]
   where
   title = formatTournamentTitle day
 
@@ -152,54 +163,44 @@ formatWeekday w = case w of
     6 -> "Saturday"
     7 -> "Sunday"
 
-tableGroup _ [] = noHtml
-tableGroup n xs =
-  tr << map (td <<) a
-  +++
-  tableGroup n b
+tableGroup _ [] = []
+tableGroup n xs = a : tableGroup n b
   where
   (a,b) = splitAt n xs
 
 tournamentTable :: Map String Law -> TournamentSummary String -> Html
-tournamentTable laws results =
-  table ! [theclass "results"]
-  << tableGroup tournamentColumns (map (uncurry formatPlayerResult) (Map.toList results))
-  where
-  formatPlayerResult playerName (finalLaw, matches) =
-    thediv ! [theclass "resultbox"] <<
-    [ thespan ! [theclass "playername"] << playerName
-    , thespan ! [theclass "lawchange" ] << formatLawChange initialLaw finalLaw
-    , summaryTable matches
-    ]
-    where
-    initialLaw = getLaw playerName laws
+tournamentTable laws results = [shamlet|
+<table .results>
+  $forall row <- tableGroup tournamentColumns $ Map.toList results
+    <tr>
+      $forall cell <- row
+        <td>
+          <div .resultbox>
+            <span .playername>#{fst cell}
+            <span .lawchange>#{formatLawChange (getLaw (fst cell) laws) (fst $ snd cell)}
+            ^{summaryTable $ snd $ snd cell}
+|]
 
 summaryTable :: Map String MatchSummary -> Html
-summaryTable summaries = table ! [theclass "matchbox"]
-  <<
-  [ tr << [ th << "Δ"
-          , th << "Rating"
-          , th << "Opponent"
-          , th << "W-L"
-          ]
-  , ifoldMap mkRow $ Map.toList summaries
-  ]
+summaryTable summaries = [shamlet|
+<table .matchbox>
+  <tr>
+    <th>Δ
+    <th>Rating
+    <th>Opponent
+    <th>W-L
+  $forall row <- rows
+    ^{mkRow row}
+|]
   where
-  mkRow i (opponentName,summary) =
-    tr ! classes <<
-    [ td ! [theclass "delta"]
-         << formatDelta (summaryPointChange summary)
-    , td ! [theclass "rating"]
-         << formatLaw   (summaryAdjustedLaw summary)
-    , td ! [theclass "opponent"]
-         << opponentName
-    , td ! [theclass "outcome"]
-         << formatOutcome (summaryOutcome summary)
-    ]
-    where
-    classes
-      | even i = []
-      | otherwise = [theclass "alt"]
+  rows = zip [0..] $ Map.toList summaries
+  mkRow (i,(opponentName,summary)) = [shamlet|
+<tr :odd i:.alt> 
+  <td .delta>#{formatDelta $ summaryPointChange summary}
+  <td .rating>#{formatLaw $ summaryAdjustedLaw summary}
+  <td .opponent>#{opponentName}
+  <td .outcome>#{formatOutcome $ summaryOutcome summary}
+|]
 
 showRound :: Double -> String
 showRound x = show (round x :: Integer)
