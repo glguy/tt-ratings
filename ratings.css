@@ -30,3 +30,9 @@ td {
 tr.alt td {
   background-color: rgb(234, 242, 211);
 }
+
+div.bargraph {
+	width: 10em;
+	height: 1.1em;
+	background-color: white;
+}

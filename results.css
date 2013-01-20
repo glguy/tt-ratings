@@ -38,17 +38,25 @@ div.resultbox table th {
 }
 div.resultbox table td {
   border: 1px solid rgb(152, 191, 33);
-  padding: 2px;
   background-color: white;
 }
 div.resultbox table td.delta {
   text-align: right;
 }
 
+table.matchbox td {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+}
+
 div.resultbox table tr.alt td {
   background-color: rgb(234, 242, 211);
 }
 
-table.matchbox > tbody > tr > td {
-  text-align: left
+td.outcome {
+	text-align: center;
+}
+
+td.opponent {
+	text-align: left;
 }

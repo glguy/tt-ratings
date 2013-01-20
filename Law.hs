@@ -10,7 +10,7 @@ import Statistics.Distribution.Normal (normalDistr)
 data Law = Law { lawRaw :: !(UArray Int Double)
                , lawMean, lawStddev :: !Double }
 
-data Outcome = Outcome { _outcomeWins, _outcomeLoses :: Int }
+data Outcome = Outcome { _outcomeWins, _outcomeLosses :: Int }
   deriving (Eq, Show)
 
 makeLenses ''Outcome
@@ -43,9 +43,8 @@ lawFromList xs = Law (listArray (0,360) normalized) mean (sqrt variance)
 -- | Find the probability that the score is in the range of
 -- [i-5,i+5] given a law.
 lawAt :: Law -> Int -> Double
-lawAt law i
-  | 0 <= i && i <= 3600 && i `mod` 10 == 0 = lawRaw law ! (i `div` 10)
-  | otherwise = error "lawAt: bad index"
+lawAt law i = lawRaw law ! (i `div` 10)
+{-# INLINE lawAt #-}
 
 -- | Probability of an upset given the difference in two ratings.
 upsetProbability :: Int -> Double
@@ -65,7 +64,17 @@ lawUpdate LawUpdate{playerLaw = lp, opponentLaw = lq, updateOutcome = outcome}
       ]
   where
   w = view outcomeWins outcome
-  l = view outcomeLoses outcome
+  l = view outcomeLosses outcome
+
+-- | Chance that law lp will defeat law lq
+chanceToWin :: Law -> Law -> Double
+chanceToWin lp lq =
+  sum [ upsetProbability (q - p)
+      * lawAt lp p
+      * lawAt lq q
+      | q <- omega
+      , p <- omega
+      ]
 
 -- | Generate a discretized normal law given a mean and standard deviation.
 normalLaw ::
@@ -105,3 +114,17 @@ lawIsRated l = lawStddev l < 500
 
 lawElems :: Law -> [Double]
 lawElems = elems . lawRaw
+
+lawUnupdate :: LawUpdate -> Law
+lawUnupdate LawUpdate{playerLaw = lp, opponentLaw = lq, updateOutcome = outcome}
+    = lawFromList
+      [ lawAt lp p
+      / sum [ upsetProbability (q - p) ^ w
+            * upsetProbability (p - q) ^ l
+            * lawAt lq q
+            | q <- omega]
+      | p <- omega
+      ]
+  where
+  w = view outcomeWins outcome
+  l = view outcomeLosses outcome

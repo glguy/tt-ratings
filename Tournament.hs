@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Tournament where
 
 import Control.Applicative
@@ -9,23 +10,28 @@ import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
 import Data.Traversable
+import DB (Match(..))
 import Law
 import qualified Data.Map as Map
-
-data Match name = Match { matchWinner, matchLoser :: name }
-  deriving (Eq, Show)
 
 type Tournament name = [Match name]
 
 type OutcomeMap name = Map name (Map name Outcome)
 
-type TournamentSummary name = Map name (Law, Map name MatchSummary)
+data PlayerSummary name = PlayerSummary
+  { _summaryInitialLaw, _summaryFinalLaw :: Law
+  , _summaryMatches :: Map name MatchSummary
+  }
+
+type TournamentSummary name = Map name (PlayerSummary name)
 
 data MatchSummary = MatchSummary
   { summaryAdjustedLaw  :: Law
   , summaryPointChange  :: Double
   , summaryOutcome      :: Outcome
   }
+
+makeLenses ''PlayerSummary
 
 -- | Outcome without any wins or loses.
 noOutcome :: Outcome
@@ -40,20 +46,9 @@ matchOutcomes = foldl' addMatch Map.empty
   where
   look w l = at w . defaultEmpty . at l . non noOutcome
 
-  addMatch outcomes match
-    = updateWinner match
-    . updateLoser match
-    $ outcomes
-
-  updateWinner match
-    = look (matchWinner match) (matchLoser  match)
-    . outcomeWins
-    +~ 1
-
-  updateLoser match
-    = look (matchLoser  match) (matchWinner match)
-    . outcomeLoses
-    +~ 1
+  addMatch outcomes match = updateWinner match . updateLoser match $ outcomes
+  updateWinner match = look (winner match) (loser  match) . outcomeWins   +~ 1
+  updateLoser  match = look (loser  match) (winner match) . outcomeLosses +~ 1
 
 -- | Compute a final law and match summary set for a player
 -- given the tournament information, initial laws, and player\'s
@@ -64,8 +59,13 @@ updatePlayer ::
   Map name Law     {- ^ Initial laws going into the tournament -} ->
   name             {- ^ Name of player to update -} ->
   Map name Outcome {- ^ outcomes for games played by this player -} ->
-  (Law, Map name MatchSummary) {- ^ (Final law, Match Summaries) -}
-updatePlayer outcomes laws playerName opponents = (finalLaw, matchSummaries)
+  PlayerSummary name
+updatePlayer outcomes laws playerName opponents
+  = PlayerSummary
+      { _summaryInitialLaw = playerInitialLaw
+      , _summaryFinalLaw = finalLaw
+      , _summaryMatches = matchSummaries
+      }
   where
   playerInitialLaw = getLaw playerName laws
 
@@ -75,10 +75,7 @@ updatePlayer outcomes laws playerName opponents = (finalLaw, matchSummaries)
     ( lawUpdate u
     , MatchSummary
         { summaryAdjustedLaw    = opponentAdjustedLaw
-        , summaryPointChange    = computePointChange LawUpdate
-                                    { playerLaw = playerInitialLaw
-                                    , opponentLaw = opponentAdjustedLaw
-                                    , updateOutcome = outcome }
+        , summaryPointChange    = computePointChange u { playerLaw = playerInitialLaw }
         , summaryOutcome        = outcome
         })
     where
@@ -103,7 +100,8 @@ computeAdjustedLaw opp player outcomes laws
   where
   relevantOutcomes
     = Map.delete player
-    $ view (at opp . defaultEmpty) outcomes
+    $ fromMaybe (error "computeAdjustedLaw: opponent not in outcomes")
+    $ Map.lookup opp outcomes
 
   updateOne otherPlayer accLaw outcome =
     lawUpdate LawUpdate
@@ -127,22 +125,28 @@ degradeLaw today (lastUpdate, law) = timeEffect days law
   days = fromIntegral $ diffDays today lastUpdate
 
 degradeLaws :: Functor f => Day -> f (Day, Law) -> f Law
-degradeLaws today = fmap (degradeLaw today)
+degradeLaws = fmap . degradeLaw
 
 updateLawsForTournament :: Ord name => Tournament name -> Map name Law -> TournamentSummary name
 updateLawsForTournament tournament laws = imap (updatePlayer outcomes laws) outcomes
   where
   outcomes = matchOutcomes tournament
 
-defaultEmpty :: Simple Iso (Maybe (Map k v)) (Map k v)
+defaultEmpty :: Iso' (Maybe (Map k v)) (Map k v)
 defaultEmpty = anon Map.empty Map.null
 
 getLaw :: Ord name => name -> Map name Law -> Law
 getLaw n laws = fromMaybe defaultLaw (view (at n) laws)
 
-rekeyMap :: (Ord a, Ord b, Applicative f) => (a -> f b) -> Map a v -> f (Map b v)
-rekeyMap f = fmap Map.fromList . (traverse . _1) f . Map.toList
+traverseKeys :: (Ord a, Ord b, Applicative f) =>
+  LensLike f (Map a v) (Map b v) a b
+traverseKeys f = fmap Map.fromList . (traverse . _1) f . Map.toList
 
-tournamentNameTraversal :: (Ord a, Ord b, Monad f, Applicative f) =>
-  (a -> f b) -> TournamentSummary a -> f (TournamentSummary b)
-tournamentNameTraversal f = (traverse . _2) (rekeyMap f) <=< rekeyMap f
+tournamentNameTraversal :: (Ord a, Ord b, Applicative f) =>
+  LensLike f (TournamentSummary a) (TournamentSummary b) a b
+tournamentNameTraversal f = fmap Map.fromList . traverse fixEntry . Map.toList
+  where
+  fixEntry = traversePair f (summaryMatches (traverseKeys f))
+
+traversePair :: Applicative f => (a -> f b) -> (c -> f d) -> (a,c) -> f (b,d)
+traversePair f g (x,y) = (,) <$> f x <*> g y

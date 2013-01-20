@@ -1,16 +1,18 @@
 module Main where
 
+import Control.Lens
+import DB
+import Data.Map (Map)
+import Data.Maybe (fromMaybe)
+import Data.Time.Calendar
 import Law
-import GraphData
-import Tournament
-import TournamentSummaryHtml
 import LawSerialization
 import System.Environment
+import Tournament
+import TournamentSummaryHtml
 import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.Time.Calendar
-import DB
 
+main :: IO ()
 main = do
   [dayStr, previousLawsFn, newLawsFn, resultsFn, ratingsFn] <- getArgs
 
@@ -24,25 +26,23 @@ main = do
 
       -- Map.union is left biased, only update laws for those who
       -- played today
-      newLaws      = Map.union (fmap (\(law,_) -> (day,law)) results)
+      newLaws      = Map.union (fmap (\s -> (day,view summaryFinalLaw s)) results)
                                previousLaws
 
   namedResults <- nameResults playerMap results
+  namedNewLaws <- nameMap playerMap newLaws
 
-  writeFile ratingsFn $ ratingsHtml $ nameMap playerMap newLaws
-  writeFile resultsFn $ tournamentHtml (nameMap playerMap degradedLaws) day namedResults
+  writeFile ratingsFn $ ratingsHtml namedNewLaws
+  writeFile resultsFn $ tournamentHtml day namedResults
   writeFile newLawsFn $ serializeLaws newLaws
-  writeFile "graph.js" $ generateSimpleFlotData $ nameMap playerMap $ fmap snd newLaws
 
 
 loadPlayerMap = do
   players <- getPlayers
   return (Map.fromList [(playerId player, playerName player) | player <- players])
 
-loadMatches day = do
-  matches <- getMatches day
-  return [Tournament.Match { matchWinner = winner m, matchLoser = loser m }
-         | (_,m) <- matches]
+loadMatches :: Day -> IO [Match Int]
+loadMatches day = fmap (fmap snd) (getMatches day)
 
 loadLaws :: FilePath -> IO (Map Int (Day, Law))
 loadLaws fn = do
@@ -51,12 +51,10 @@ loadLaws fn = do
   return laws
 
 nameMap names
-  = Map.fromList
-  . map (\(k,v) -> let Just name = Map.lookup k names in (name, v))
-  . Map.toList
+  = maybe (fail "nameMap: missing names") return
+  . traverseKeys (flip Map.lookup names)
 
 nameResults :: Map Int String -> TournamentSummary Int -> IO (TournamentSummary String)
-nameResults players results = do
-  case tournamentNameTraversal (`Map.lookup` players) results of
-    Nothing -> fail ("Unknown player number")
-    Just x -> return x
+nameResults players
+  = maybe (fail "Unknown player number") return
+  . tournamentNameTraversal (flip Map.lookup players)

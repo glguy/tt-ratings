@@ -7,6 +7,7 @@ import Data.Foldable (foldMap)
 import Data.Ord (comparing)
 import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate
+import Data.List.Split (chunksOf)
 import Tournament
 import Text.Hamlet (Html, shamlet)
 import Control.Lens
@@ -15,14 +16,7 @@ import qualified Data.Map as Map
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import Text.Blaze.Html (preEscapedToHtml)
 
-tournamentColumns = 4
-
-data RatingsRow = RatingsRow
-  { rowName :: String
-  , rowLaw  :: Law
-  , rowDay  :: Day
-  , rowIndex :: Int
-  }
+tournamentColumns = 3
 
 ratingsHtml :: Map String (Day,Law) -> String
 ratingsHtml laws = renderHtml [shamlet|
@@ -44,24 +38,20 @@ $doctype 5
         <th>Metric
         <th>Last played
         <th>Graph
-      $forall row <- rows
-        <tr :(odd (rowIndex row)):.alt>
-          <td>#{rowName row}
-          <td>#{formatLaw $ rowLaw row}
-          <td>#{showRound $ lawScore $ rowLaw row}
-          <td>#{formatShortDay $ rowDay row}
+      $forall (i,name,day,law) <- rows
+        <tr :odd i:.alt>
+          <td>#{name}
+          <td>#{formatLaw law}
+          <td>#{showRound $ lawScore law}
+          <td>#{formatShortDay day}
           <td>
-            <div .bargraph #graph#{rowIndex row}>
+            <div .bargraph #graph#{i}>
   |]
   where
   byScore     = flip (comparing (lawScore . snd . snd))
   rows        = imap mkRow $ sortBy byScore $ Map.toList laws
-  mkRow i (name,(day,law)) = RatingsRow
-    { rowName = name
-    , rowLaw  = law
-    , rowDay  = day
-    , rowIndex = i
-    }
+  mkRow i (name,(day,law)) = (i,name,day,law)
+  rowLaw (_,_,_,law) = law
 
 graphScript laws
   = unlines
@@ -90,20 +80,42 @@ graphScript laws
             ,"};"
             ]
 
-tournamentHtml :: Map String Law -> Day -> TournamentSummary String -> String
-tournamentHtml laws day results = renderHtml [shamlet|
+tournamentHtml :: Day -> TournamentSummary String -> String
+tournamentHtml day results = renderHtml [shamlet|
 $doctype 5
-<html>
+$with title <- formatTournamentTitle day
+ <html>
   <head>
     <meta charset=utf-8>
     <title>#{title}
     <link rel=stylesheet type=text/css href=results.css>
   <body>
     <h1>#{title}
-    ^{tournamentTable laws results}
+    <table .results>
+     $forall row <- chunksOf tournamentColumns $ Map.toList results
+      <tr>
+       $forall (name,summ) <- row
+        <td>
+         <div .resultbox>
+          <span .playername>#{name}
+          <span .lawchange>
+           #{formatLawChange (view summaryInitialLaw summ) (view summaryFinalLaw summ)}
+          <table .matchbox>
+            <tr>
+              <th>Δ
+              <th>Rating
+              <th>Opponent
+              <th>W
+              <th>L
+            $forall (i,row) <- itoList $ Map.toList $ view summaryMatches summ
+              $with (opponentName,summary) <- row
+               <tr :odd i:.alt>
+                <td .delta>#{formatDelta $ summaryPointChange summary}
+                <td .rating>#{formatLaw $ summaryAdjustedLaw summary}
+                <td .opponent>#{opponentName}
+                <td .outcome>#{view outcomeWins $ summaryOutcome summary}
+                <td .outcome>#{view outcomeLosses $ summaryOutcome summary}
 |]
-  where
-  title = formatTournamentTitle day
 
 formatShortDay :: Day -> String
 formatShortDay day = formatShortMonth m ++ " " ++ show d
@@ -163,45 +175,6 @@ formatWeekday w = case w of
     6 -> "Saturday"
     7 -> "Sunday"
 
-tableGroup _ [] = []
-tableGroup n xs = a : tableGroup n b
-  where
-  (a,b) = splitAt n xs
-
-tournamentTable :: Map String Law -> TournamentSummary String -> Html
-tournamentTable laws results = [shamlet|
-<table .results>
-  $forall row <- tableGroup tournamentColumns $ Map.toList results
-    <tr>
-      $forall cell <- row
-        <td>
-          <div .resultbox>
-            <span .playername>#{fst cell}
-            <span .lawchange>#{formatLawChange (getLaw (fst cell) laws) (fst $ snd cell)}
-            ^{summaryTable $ snd $ snd cell}
-|]
-
-summaryTable :: Map String MatchSummary -> Html
-summaryTable summaries = [shamlet|
-<table .matchbox>
-  <tr>
-    <th>Δ
-    <th>Rating
-    <th>Opponent
-    <th>W-L
-  $forall row <- rows
-    ^{mkRow row}
-|]
-  where
-  rows = zip [0..] $ Map.toList summaries
-  mkRow (i,(opponentName,summary)) = [shamlet|
-<tr :odd i:.alt> 
-  <td .delta>#{formatDelta $ summaryPointChange summary}
-  <td .rating>#{formatLaw $ summaryAdjustedLaw summary}
-  <td .opponent>#{opponentName}
-  <td .outcome>#{formatOutcome $ summaryOutcome summary}
-|]
-
 showRound :: Double -> String
 showRound x = show (round x :: Integer)
 
@@ -227,8 +200,3 @@ formatLawChange old new =
   formatLaw old
   ++ formatDeltaOp (lawMean new - lawMean old) ++ " = "
   ++ formatLaw new
-
-formatOutcome :: Outcome -> String
-formatOutcome outcome = show (view outcomeWins outcome)
-                     ++ "-"
-                     ++ show (view outcomeLoses outcome)
