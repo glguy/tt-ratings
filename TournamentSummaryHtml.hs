@@ -2,11 +2,11 @@
 module TournamentSummaryHtml where
 
 import Law
+import Formatting
 import Data.List (sortBy)
 import Data.Foldable (foldMap)
 import Data.Ord (comparing)
 import Data.Time.Calendar
-import Data.Time.Calendar.WeekDate
 import Data.List.Split (chunksOf)
 import Tournament
 import Text.Hamlet (Html, shamlet)
@@ -34,16 +34,18 @@ $doctype 5
     <table>
       <tr>
         <th>Player
-        <th>Rating
+        <th>μ
+        <th>σ
         <th>Metric
         <th>Last played
         <th>Graph
       $forall (i,name,day,law) <- rows
         <tr :odd i:.alt>
-          <td>#{name}
-          <td>#{formatLaw law}
-          <td>#{showRound $ lawScore law}
-          <td>#{formatShortDay day}
+          <td .str>#{name}
+          <td .num>#{showRound $ lawMean law}
+          <td .num>#{showRound $ lawStddev law}
+          <td .num>#{showRound $ lawScore law}
+          <td .str>#{formatShortDay day}
           <td>
             <div .bargraph #graph#{i}>
   |]
@@ -80,7 +82,7 @@ graphScript laws
             ,"};"
             ]
 
-tournamentHtml :: Day -> TournamentSummary String -> String
+tournamentHtml :: Day -> Map String (PlayerSummary String) -> String
 tournamentHtml day results = renderHtml [shamlet|
 $doctype 5
 $with title <- formatTournamentTitle day
@@ -117,63 +119,8 @@ $with title <- formatTournamentTitle day
                 <td .outcome>#{view outcomeLosses $ summaryOutcome summary}
 |]
 
-formatShortDay :: Day -> String
-formatShortDay day = formatShortMonth m ++ " " ++ show d
-  where
-  (_,m,d) = toGregorian day
-
 formatTournamentTitle :: Day -> String
-formatTournamentTitle day
-  = "Tournament Results - "
-  ++ weekday ++ ", "
-  ++ month ++ " " ++ show dayNum ++ ", "
-  ++ show yearNum
-  where
-  (yearNum,monthNum,dayNum) = toGregorian day
-  (_,_,weekdayNum) = toWeekDate day
-
-  month = formatMonth monthNum
-  weekday = formatWeekday weekdayNum
-
-formatShortMonth :: Int -> String
-formatShortMonth m = case m of
-    1 -> "Jan"
-    2 -> "Feb"
-    3 -> "Mar"
-    4 -> "Apr"
-    5 -> "May"
-    6 -> "Jun"
-    7 -> "Jul"
-    8 -> "Aug"
-    9 -> "Sep"
-    10 -> "Oct"
-    11 -> "Nov"
-    12 -> "Dec"
-
-formatMonth :: Int -> String
-formatMonth m = case m of
-    1 -> "January"
-    2 -> "February"
-    3 -> "March"
-    4 -> "April"
-    5 -> "May"
-    6 -> "June"
-    7 -> "July"
-    8 -> "August"
-    9 -> "September"
-    10 -> "October"
-    11 -> "November"
-    12 -> "December"
-
-formatWeekday :: Int -> String
-formatWeekday w = case w of
-    1 -> "Monday"
-    2 -> "Tuesday"
-    3 -> "Wednesday"
-    4 -> "Thursday"
-    5 -> "Friday"
-    6 -> "Saturday"
-    7 -> "Sunday"
+formatTournamentTitle day = "Tournament Results - " ++ formatLongDay day
 
 showRound :: Double -> String
 showRound x = show (round x :: Integer)

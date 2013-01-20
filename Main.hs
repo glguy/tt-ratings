@@ -54,7 +54,7 @@ nameMap names
   = maybe (fail "nameMap: missing names") return
   . traverseKeys (flip Map.lookup names)
 
-nameResults :: Map Int String -> TournamentSummary Int -> IO (TournamentSummary String)
+nameResults :: Map Int String -> Map Int (PlayerSummary Int) -> IO (Map String (PlayerSummary String))
 nameResults players
   = maybe (fail "Unknown player number") return
   . tournamentNameTraversal (flip Map.lookup players)

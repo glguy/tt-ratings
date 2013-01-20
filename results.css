@@ -44,6 +44,9 @@ div.resultbox table td.delta {
   text-align: right;
 }
 
+table.matchbox {
+        width: 100%;
+}
 table.matchbox td {
 	padding-left: 0.5em;
 	padding-right: 0.5em;

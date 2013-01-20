@@ -20,6 +20,8 @@ data LawUpdate = LawUpdate
   , updateOutcome :: Outcome
   }
 
+flipOutcome :: Outcome -> Outcome
+flipOutcome (Outcome a b) = Outcome b a
 
 -- | Law assigned to unrated players
 defaultLaw :: Law
@@ -57,9 +59,23 @@ lawUpdate LawUpdate{playerLaw = lp, opponentLaw = lq, updateOutcome = outcome}
     = lawFromList
       [ sum [ upsetProbability (q - p) ^ w
             * upsetProbability (p - q) ^ l
-            * lawAt lp p
             * lawAt lq q
-            | q <- omega]
+            | q <- omega ]
+      * lawAt lp p
+      | p <- omega
+      ]
+  where
+  w = view outcomeWins outcome
+  l = view outcomeLosses outcome
+
+lawUnupdate :: LawUpdate -> Law
+lawUnupdate LawUpdate{playerLaw = lp, opponentLaw = lq, updateOutcome = outcome}
+    = lawFromList
+      [ lawAt lp p
+      / sum [ upsetProbability (q - p) ^ w
+            * upsetProbability (p - q) ^ l
+            * lawAt lq q
+            | q <- omega ]
       | p <- omega
       ]
   where
@@ -114,17 +130,3 @@ lawIsRated l = lawStddev l < 500
 
 lawElems :: Law -> [Double]
 lawElems = elems . lawRaw
-
-lawUnupdate :: LawUpdate -> Law
-lawUnupdate LawUpdate{playerLaw = lp, opponentLaw = lq, updateOutcome = outcome}
-    = lawFromList
-      [ lawAt lp p
-      / sum [ upsetProbability (q - p) ^ w
-            * upsetProbability (p - q) ^ l
-            * lawAt lq q
-            | q <- omega]
-      | p <- omega
-      ]
-  where
-  w = view outcomeWins outcome
-  l = view outcomeLosses outcome

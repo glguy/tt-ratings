@@ -1,0 +1,59 @@
+body {
+  text-align: center;
+  background-color: rgb(220,230,255);
+}
+
+
+div.entry {
+	margin-top: 10em;
+}
+
+div.entry input {
+	font-size: x-large;
+}
+
+table {
+	margin-left: auto;
+	margin-right: auto;
+	border-collapse: collapse;
+}
+
+table th {
+  background-color: rgb(167, 201, 66);
+  border-left: 1px solid white;
+  color: white;
+  padding-left: 0.3em;
+  padding-right: 0.3em;
+}
+table td {
+  border: 1px solid rgb(152, 191, 33);
+  padding: 0.5em;
+  background-color: white;
+}
+
+table tr.alt td {
+  background-color: rgb(234, 242, 211);
+}
+
+input#submit {
+  background-color: rgb(167, 201, 66);
+  border: 1px solid black;
+  color: white;
+}
+
+input#winner, input#loser {
+  background-color: white;
+  border: 1px solid black;
+  color: black;
+}
+
+label {
+	font-weight: bold;
+	font-style: italic;
+}
+
+a.delete {
+	text-decoration: none;
+	color: gray;
+	font-style: italic;
+}
