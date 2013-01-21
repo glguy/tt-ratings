@@ -16,23 +16,21 @@ import qualified Data.Map as Map
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import Text.Blaze.Html (preEscapedToHtml)
 
-tournamentColumns = 3
+tournamentColumns = 2
 
-ratingsHtml :: Map String (Day,Law) -> String
-ratingsHtml laws = renderHtml [shamlet|
+ratingsHtml :: Day -> Map String (Day,Law) -> String
+ratingsHtml day laws = renderHtml [shamlet|
 $doctype 5
 <html>
   <head>
     <meta charset=utf-8>
-    <title>Ratings
+    <title>#{title}
     <link rel=stylesheet href=ratings.css>
-    <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/themes/base/jquery-ui.css" rel="stylesheet" type="text/css"/>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
-    <script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/jquery-ui.min.js">
     <script language=javascript src=flot/jquery.flot.js>
     <script language=javascript>#{preEscapedToHtml $ graphScript $ map rowLaw rows}
   <body>
-    <h1>Ratings
+    <h1>#{title}
     <table>
       <tr>
         <th>Player
@@ -52,6 +50,7 @@ $doctype 5
             <div .bargraph #graph#{i}>
   |]
   where
+  title       = "Player List - " ++ formatLongDay day
   byScore     = flip (comparing (lawScore . snd . snd))
   rows        = imap mkRow $ sortBy byScore $ Map.toList laws
   mkRow i (name,(day,law)) = (i,name,day,law)
@@ -75,15 +74,19 @@ graphScript laws
   minVal = minimum $ map mkLo laws
   maxVal = maximum $ map mkHi laws
   options =
-    ["var options = {"
-            ," xaxis: { min: " ++ show minVal ++ ", max: " ++ show maxVal ++  " , show: false },"
-            ," yaxis: { show: false },"
-            ," margin: { top: 0, left: 0, right: 0, bottom: 0 },"
-            ," lines: { show: true },"
-            ," points: { show: true, symbol: \"circle\" },"
-            ," colors: [\"red\"]"
-            ,"};"
-            ]
+      [ "function vertLine(ctx, x, y, radius, shadow) {"
+      , "     ctx.moveTo(x, y - radius);"
+      , "     ctx.lineTo(x, y + radius);"
+      , "}"
+      , "var options = {"
+      ," xaxis: { min: " ++ show minVal ++ ", max: " ++ show maxVal ++  " , show: false },"
+      ," yaxis: { show: false },"
+      ," margin: { top: 0, left: 0, right: 0, bottom: 0 },"
+      ," lines: { show: true },"
+      ," points: { show: true, symbol: vertLine },"
+      ," colors: [\"red\"]"
+      ,"};"
+      ]
 
 tournamentHtml :: Day -> Map String (PlayerSummary String) -> String
 tournamentHtml day results = renderHtml [shamlet|
@@ -94,8 +97,34 @@ $with title <- formatTournamentTitle day
     <meta charset=utf-8>
     <title>#{title}
     <link rel=stylesheet type=text/css href=results.css>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
   <body>
     <h1>#{title}
+    <div #tabs>
+      <div #summary-report>
+        ^{summary}
+      <div #detailed-report>
+        ^{detailed}
+|]
+  where
+  summary = [shamlet|
+    <table .summary>
+      <tr>
+        <th>Name
+        <th>Initial
+        <th>Δ
+        <th>Final
+      $forall (i,row) <- rows
+        $with (name,summ) <- row
+         $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
+          <tr :odd i:.alt>
+            <td .opponent>#{name}
+            <td .rating>#{formatLaw   initial}
+            <td .delta>^{formatDelta $ lawMean final - lawMean initial}
+            <td .rating>#{formatLaw   final}
+|]
+    where rows = itoList $ sortBy (flip (comparing (lawMean . view summaryFinalLaw . snd))) $ Map.toList results
+  detailed = [shamlet|
     <table .results>
      $forall row <- chunksOf tournamentColumns $ Map.toList results
       <tr>
@@ -108,15 +137,17 @@ $with title <- formatTournamentTitle day
           <table .matchbox>
             <tr>
               <th>Δ
-              <th>Rating
+              <th>μ
+              <th>σ
               <th>Opponent
               <th>W
               <th>L
             $forall (i,row) <- itoList $ Map.toList $ view summaryMatches summ
               $with (opponentName,summary) <- row
                <tr :odd i:.alt>
-                <td .delta>#{formatDelta $ summaryPointChange summary}
-                <td .rating>#{formatLaw $ summaryAdjustedLaw summary}
+                <td .delta>^{formatDelta $ summaryPointChange summary}
+                <td .rating>#{showRound $ lawMean   $ summaryAdjustedLaw summary}
+                <td .rating>#{showRound $ lawStddev $ summaryAdjustedLaw summary}
                 <td .opponent>#{opponentName}
                 <td .outcome>#{view outcomeWins $ summaryOutcome summary}
                 <td .outcome>#{view outcomeLosses $ summaryOutcome summary}
@@ -131,10 +162,11 @@ showRound x = show (round x :: Integer)
 formatLaw :: Law -> String
 formatLaw law = showRound (lawMean law) ++ "±" ++ showRound (lawStddev law)
 
-formatDelta :: Double -> String
-formatDelta d
-  | d > 0 = '+':showRound d
-  | otherwise = showRound d
+formatDelta :: Double -> Html
+formatDelta d = case compare d 0 of
+  LT -> [shamlet| <span .negative>#{showRound d} |]
+  EQ -> [shamlet| 0 |]
+  GT -> [shamlet| +#{showRound d} |]
 
 formatDeltaOp :: Double -> String
 formatDeltaOp d

@@ -3,6 +3,11 @@ body {
   background-color: rgb(220,230,255);
 }
 
+h1 {
+  text-align: left;
+  border-bottom: 1px solid black;
+}
+
 table {
   border-collapse: collapse;
   margin-left: auto;

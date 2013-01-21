@@ -31,7 +31,6 @@ div.resultbox table {
 
 div.resultbox table th {
   background-color: rgb(167, 201, 66);
-  border-left: 1px solid white;
   color: white;
   padding-left: 0.3em;
   padding-right: 0.3em;
@@ -40,13 +39,11 @@ div.resultbox table td {
   border: 1px solid rgb(152, 191, 33);
   background-color: white;
 }
-div.resultbox table td.delta {
+
+td.delta {
   text-align: right;
 }
 
-table.matchbox {
-        width: 100%;
-}
 table.matchbox td {
 	padding-left: 0.5em;
 	padding-right: 0.5em;
@@ -62,4 +59,34 @@ td.outcome {
 
 td.opponent {
 	text-align: left;
+}
+
+table.summary {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+  border-collapse: collapse;
+  border: 1px solid rgb(167, 201, 66);
+  background-color: white;
+}
+
+table.summary th {
+  background-color: rgb(167, 201, 66);
+  color: white;
+  padding-left: 0.3em;
+  padding-right: 0.3em;
+}
+
+table.summary tr.alt td {
+  background-color: rgb(234, 242, 211);
+}
+
+table.summary td {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+        border: 1px solid rgb(152, 191, 33);
+}
+
+span.negative {
+  color: red;
 }

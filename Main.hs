@@ -43,7 +43,7 @@ main = do
   namedNewLaws <- nameMap playerMap newLaws
   namedTodaysLaws <- nameMap playerMap todaysLaws
 
-  writeFile (ratingsFn config) $ ratingsHtml namedTodaysLaws
+  writeFile (ratingsFn config) $ ratingsHtml (today config) namedTodaysLaws
   writeFile (resultsFn config) $ tournamentHtml (today config) namedResults
   writeFile (newLawsFn config) $ serializeLaws newLaws
 

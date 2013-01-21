@@ -16,11 +16,11 @@ table {
 	margin-left: auto;
 	margin-right: auto;
 	border-collapse: collapse;
+        border: 1px solid rgb(167, 201, 66);
 }
 
 table th {
   background-color: rgb(167, 201, 66);
-  border-left: 1px solid white;
   color: white;
   padding-left: 0.3em;
   padding-right: 0.3em;
