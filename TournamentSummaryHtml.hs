@@ -26,10 +26,12 @@ $doctype 5
     <meta charset=utf-8>
     <title>Ratings
     <link rel=stylesheet href=ratings.css>
-    <script language=javascript src=flot/jquery.js>
+    <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/themes/base/jquery-ui.css" rel="stylesheet" type="text/css"/>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
+    <script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/jquery-ui.min.js">
     <script language=javascript src=flot/jquery.flot.js>
     <script language=javascript>#{preEscapedToHtml $ graphScript $ map rowLaw rows}
-  <body onload="drawGraphs()">
+  <body>
     <h1>Ratings
     <table>
       <tr>
@@ -57,12 +59,13 @@ $doctype 5
 
 graphScript laws
   = unlines
-  $ "function drawGraphs() {"
+  $ "$(document).ready(function drawGraphs() {"
   : options
   ++ imap drawOne laws
- ++ ["}"]
+ ++ ["})"]
   where
-  drawOne i law = "$.plot($(\"#graph"++show i++"\"), [" ++ show dat ++ "], options);"
+  drawOne i law =
+    "$.plot($(\"#graph"++show i++"\"), [" ++ show dat ++ "], options);"
     where
     dat = map (\x -> [x,0]) [mkLo law, mkLoMid law, lawMean law, mkHiMid law, mkHi law]
   mkLo law = lawMean law - 2 * lawStddev law

@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module Main where
 
 import Control.Lens
@@ -12,30 +13,47 @@ import Tournament
 import TournamentSummaryHtml
 import qualified Data.Map as Map
 
+data Config = Config
+  { today :: Day
+  , previousLawsFn, newLawsFn, resultsFn, ratingsFn :: FilePath
+  }
+
 main :: IO ()
 main = do
-  [dayStr, previousLawsFn, newLawsFn, resultsFn, ratingsFn] <- getArgs
+  config <- getConfig
 
-  Just day     <- return (parseDay dayStr)
   playerMap    <- loadPlayerMap
-  previousLaws <- loadLaws previousLawsFn
-  matches      <- loadMatches day
+  previousLaws <- loadLaws $ previousLawsFn config
+  matches      <- loadMatches $ today config
 
-  let degradedLaws = degradeLaws day previousLaws
+  let degradedDayLaws = fmap (\(day,law) -> (day, degradeLaw (today config) day law)) previousLaws
+      degradedLaws    = fmap snd degradedDayLaws
       results      = updateLawsForTournament matches degradedLaws
 
       -- Map.union is left biased, only update laws for those who
       -- played today
-      newLaws      = Map.union (fmap (\s -> (day,view summaryFinalLaw s)) results)
-                               previousLaws
+      selectLawFromResults s = (today config,view summaryFinalLaw s)
+      newLaws      = Map.union (fmap selectLawFromResults results) previousLaws
+
+      -- We display degraded laws but we don't serialize them
+      -- This way only one degrade operation occurs between events per law
+      todaysLaws   = Map.union (fmap selectLawFromResults results) degradedDayLaws
 
   namedResults <- nameResults playerMap results
   namedNewLaws <- nameMap playerMap newLaws
+  namedTodaysLaws <- nameMap playerMap todaysLaws
 
-  writeFile ratingsFn $ ratingsHtml namedNewLaws
-  writeFile resultsFn $ tournamentHtml day namedResults
-  writeFile newLawsFn $ serializeLaws newLaws
+  writeFile (ratingsFn config) $ ratingsHtml namedTodaysLaws
+  writeFile (resultsFn config) $ tournamentHtml (today config) namedResults
+  writeFile (newLawsFn config) $ serializeLaws newLaws
 
+getConfig = do
+  args <- getArgs
+  case args of
+    [dayStr, previousLawsFn, newLawsFn, resultsFn, ratingsFn] ->
+      do today <- parseDay dayStr
+         return Config {..}
+    _ -> fail "usage: tt-ratings DAY OLD_LAWS NEW_LAWS RESULTS RATINGS"
 
 loadPlayerMap = do
   players <- getPlayers

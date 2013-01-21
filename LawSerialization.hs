@@ -39,6 +39,7 @@ deserializeRow str =
            return (i,(day,law))
     _ -> Nothing
 
+parseDay :: Monad m => String -> m Day
 parseDay str = case S.splitOn "-" str of
   [y,m,d] -> return $ fromGregorian (read y) (read m) (read d)
-  _       -> Nothing
+  _       -> fail "Unable to parse day"

@@ -57,14 +57,14 @@ updatePlayer ::
   PlayerSummary name
 updatePlayer nearlyAdjustedLaws outcomes laws playerName opponents
   = PlayerSummary
-      { _summaryInitialLaw = playerInitialLaw
+      { _summaryInitialLaw = initialLaw
       , _summaryFinalLaw = finalLaw
       , _summaryMatches = matchSummaries
       }
   where
-  playerInitialLaw = getLaw playerName laws
+  initialLaw = getLaw playerName laws
 
-  (finalLaw, matchSummaries) = imapAccumL computeMatchSummary playerInitialLaw opponents
+  (finalLaw, matchSummaries) = imapAccumL computeMatchSummary initialLaw opponents
 
   computeMatchSummary opponentName accLaw outcome =
     ( finalLaw
@@ -78,7 +78,7 @@ updatePlayer nearlyAdjustedLaws outcomes laws playerName opponents
                               $ Map.lookup opponentName nearlyAdjustedLaws
     opponentAdjustedLaw = lawUnupdate LawUpdate
           { playerLaw   = opponentNearlyAdjustedLaw
-          , opponentLaw = playerInitialLaw
+          , opponentLaw = initialLaw
           , updateOutcome = flipOutcome outcome
           }
     finalLaw = lawUpdate LawUpdate
@@ -95,14 +95,12 @@ computePointChange u = lawMean (lawUpdate u) - lawMean (playerLaw u)
 
 degradeLaw ::
   Day {- ^ Today -} ->
-  (Day, Law) {- ^ (Last update, law) -} ->
+  Day  {- ^ Last update -} ->
+  Law ->
   Law
-degradeLaw today (lastUpdate, law) = timeEffect days law
+degradeLaw today lastUpdate law = timeEffect days law
   where
   days = fromIntegral $ diffDays today lastUpdate
-
-degradeLaws :: Functor f => Day -> f (Day, Law) -> f Law
-degradeLaws = fmap . degradeLaw
 
 updateLawsForTournament :: Ord name => [Match name] -> Map name Law -> Map name (PlayerSummary name)
 updateLawsForTournament tournament laws = imap (updatePlayer firstPassLaws outcomes laws) outcomes
