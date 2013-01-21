@@ -28,26 +28,30 @@ $doctype 5
     <link rel=stylesheet href=ratings.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
     <script language=javascript src=flot/jquery.flot.js>
+    <script language=javascript src=jquery.tablesorter.min.js>
     <script language=javascript>#{preEscapedToHtml $ graphScript $ map rowLaw rows}
+    <script language=javascript>$(document).ready(function(){ $("#players-table").tablesorter();});
   <body>
     <h1>#{title}
-    <table>
-      <tr>
-        <th>Player
-        <th>μ
-        <th>σ
-        <th>Metric
-        <th>Last played
-        <th>Graph
-      $forall (i,name,day,law) <- rows
-        <tr :odd i:.alt>
-          <td .str>#{name}
-          <td .num>#{showRound $ lawMean law}
-          <td .num>#{showRound $ lawStddev law}
-          <td .num>#{showRound $ lawScore law}
-          <td .str>#{formatShortDay day}
-          <td>
-            <div .bargraph #graph#{i}>
+    <table #players-table>
+      <thead>
+       <tr>
+         <th>Player
+         <th>μ
+         <th>σ
+         <th>Metric
+         <th>Last played
+         <th>Graph
+      <tbody>
+        $forall (i,name,day,law) <- rows
+          <tr :odd i:.alt>
+            <td .str>#{name}
+            <td .num>#{showRound $ lawMean law}
+            <td .num>#{showRound $ lawStddev law}
+            <td .num>#{showRound $ lawScore law}
+            <td .str>#{formatShortDay day}
+            <td>
+              <div .bargraph #graph#{i}>
   |]
   where
   title       = "Player List - " ++ formatLongDay day
