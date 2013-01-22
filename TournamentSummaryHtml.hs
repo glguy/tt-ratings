@@ -43,13 +43,17 @@ $doctype 5
          <th>Last played
          <th>Graph
       <tbody>
-        $forall (i,name,day,law) <- rows
+        $forall (i,name,lastday,law) <- rows
           <tr :odd i:.alt>
             <td .str>#{name}
             <td .num>#{showRound $ lawMean law}
             <td .num>#{showRound $ lawStddev law}
             <td .num>#{showRound $ lawScore law}
-            <td .str>#{formatShortDay day}
+            <td .str>
+              $if day == lastday
+                <i>today
+              $else
+                #{formatShortDay day}
             <td>
               <div .bargraph #graph#{i}>
   |]
@@ -168,7 +172,7 @@ formatLaw law = showRound (lawMean law) ++ "±" ++ showRound (lawStddev law)
 
 formatDelta :: Double -> Html
 formatDelta d = case compare d 0 of
-  LT -> [shamlet| <span .negative>#{showRound d} |]
+  LT -> [shamlet| <span .negative>-#{showRound (abs d)} |] -- abs and explicit - makes sure you get a -0
   EQ -> [shamlet| 0 |]
   GT -> [shamlet| +#{showRound d} |]
 

@@ -7,6 +7,7 @@ import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
 import Law
+import GraphData
 import LawSerialization
 import System.Environment
 import Tournament
@@ -46,6 +47,7 @@ main = do
   writeFile (ratingsFn config) $ ratingsHtml (today config) namedTodaysLaws
   writeFile (resultsFn config) $ tournamentHtml (today config) namedResults
   writeFile (newLawsFn config) $ serializeLaws newLaws
+  writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
 
 getConfig = do
   args <- getArgs
