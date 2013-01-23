@@ -105,7 +105,9 @@ thePage ps table =
      return [shamlet|
 <html lang=en>
   <head>
-    <meta charset=utf-8>
+    <meta charset="UTF-8" />
+    <meta name="google" content="notranslate">
+    <meta http-equiv="Content-Language" content="en" />
     <title>Ping Pong Results
     <style>#{css}
   <body>

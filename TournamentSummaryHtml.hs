@@ -18,12 +18,19 @@ import Text.Blaze.Html (preEscapedToHtml)
 
 tournamentColumns = 2
 
+metaTags :: Html
+metaTags = [shamlet|
+  <meta charset="UTF-8" />
+  <meta name="google" content="notranslate">
+  <meta http-equiv="Content-Language" content="en" />
+|]
+
 ratingsHtml :: Day -> Map String (Day,Law) -> String
 ratingsHtml day laws = renderHtml [shamlet|
 $doctype 5
 <html>
   <head>
-    <meta charset=utf-8>
+    ^{metaTags}
     <title>#{title}
     <link rel=stylesheet href=ratings.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
@@ -102,7 +109,7 @@ $doctype 5
 $with title <- formatTournamentTitle day
  <html>
   <head>
-    <meta charset=utf-8>
+    ^{metaTags}
     <title>#{title}
     <link rel=stylesheet type=text/css href=results.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
