@@ -53,7 +53,7 @@ $doctype 5
               $if day == lastday
                 <i>today
               $else
-                #{formatShortDay day}
+                #{formatShortDay lastday}
             <td>
               <div .bargraph #graph#{i}>
   |]
