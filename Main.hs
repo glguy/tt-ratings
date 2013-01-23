@@ -29,7 +29,7 @@ main = do
 
   let degradedDayLaws = fmap (\(day,law) -> (day, degradeLaw (today config) day law)) previousLaws
       degradedLaws    = fmap snd degradedDayLaws
-      results      = updateLawsForTournament matches degradedLaws
+      results         = evaluateTournament matches degradedLaws
 
       -- Map.union is left biased, only update laws for those who
       -- played today
@@ -47,8 +47,9 @@ main = do
   writeFile (ratingsFn config) $ ratingsHtml (today config) namedTodaysLaws
   writeFile (resultsFn config) $ tournamentHtml (today config) namedResults
   writeFile (newLawsFn config) $ serializeLaws newLaws
-  writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
+  -- writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
 
+getConfig :: IO Config
 getConfig = do
   args <- getArgs
   case args of
@@ -57,6 +58,7 @@ getConfig = do
          return Config {..}
     _ -> fail "usage: tt-ratings DAY OLD_LAWS NEW_LAWS RESULTS RATINGS"
 
+loadPlayerMap :: IO (Map Int String)
 loadPlayerMap = do
   players <- getPlayers
   return (Map.fromList [(playerId player, playerName player) | player <- players])
@@ -67,9 +69,11 @@ loadMatches day = fmap (fmap snd) (getMatches day)
 loadLaws :: FilePath -> IO (Map Int (Day, Law))
 loadLaws fn = do
   txt <- readFile fn
-  Just laws <- return (deserializeLaws txt)
-  return laws
+  case deserializeLaws txt of
+    Just laws   -> return laws
+    Nothing     -> fail "Unable to parse laws"
 
+nameMap :: (Monad m, Ord k, Ord k') => Map k k' -> Map k v -> m (Map k' v)
 nameMap names
   = maybe (fail "nameMap: missing names") return
   . traverseKeys (flip Map.lookup names)

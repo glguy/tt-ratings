@@ -125,20 +125,29 @@ $with title <- formatTournamentTitle day
   summary = [shamlet|
     <table .summary>
       <tr>
-        <th>Name
-        <th>Initial
-        <th>Δ
-        <th>Final
-      $forall (i,row) <- rows
+        <th rowspan=2>Name
+        <th .colgroup colspan=2>Initial
+        <th rowspan=2>Δμ
+        <th rowspan=2>Δσ
+        <th .colgroup colspan=2>Final
+      <tr>
+        <th>μ
+        <th>σ
+        <th>μ
+        <th>σ
+      $forall (i,row) <- itoList $ Map.toList results
         $with (name,summ) <- row
          $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
           <tr :odd i:.alt>
             <td .opponent>#{name}
-            <td .rating>#{formatLaw   initial}
+            <td .rating>#{showRound $ lawMean   initial}
+            <td .rating>#{showRound $ lawStddev initial}
             <td .delta>^{formatDelta $ lawMean final - lawMean initial}
-            <td .rating>#{formatLaw   final}
+            <td .delta>^{formatDelta $ lawStddev final - lawStddev initial}
+            <td .rating>#{showRound $ lawMean   final}
+            <td .rating>#{showRound $ lawStddev final}
 |]
-    where rows = itoList $ sortBy (flip (comparing (lawMean . view summaryFinalLaw . snd))) $ Map.toList results
+
   detailed = [shamlet|
     <table .results>
      $forall row <- chunksOf tournamentColumns $ Map.toList results
@@ -147,26 +156,33 @@ $with title <- formatTournamentTitle day
         <td>
          <div .resultbox>
           <span .playername>#{name}
-          <span .lawchange>
-           #{formatLawChange (view summaryInitialLaw summ) (view summaryFinalLaw summ)}
           <table .matchbox>
             <tr>
-              <th>Δ
+              <th rowspan=2>Δμ
+              <th rowspan=2>Δσ
+              <th .colgroup colspan=3>Opponent
+              <th rowspan=2>W
+              <th rowspan=2>L
+            <tr>
               <th>μ
               <th>σ
-              <th>Opponent
-              <th>W
-              <th>L
+              <th>Name
             $forall (i,row) <- itoList $ Map.toList $ view summaryMatches summ
               $with (opponentName,summary) <- row
                <tr :odd i:.alt>
-                <td .delta>^{formatDelta $ summaryPointChange summary}
-                <td .rating>#{showRound $ lawMean   $ summaryAdjustedLaw summary}
-                <td .rating>#{showRound $ lawStddev $ summaryAdjustedLaw summary}
+                <td .delta>^{formatDelta $ summaryMeanChange   summary}
+                <td .delta>^{formatDelta $ summaryStddevChange summary}
+                <td .quiet .rating>#{showRound $ lawMean   $ summaryAdjustedLaw summary}
+                <td .quiet .rating>#{showRound $ lawStddev $ summaryAdjustedLaw summary}
                 <td .opponent>#{opponentName}
-                <td .outcome>#{view outcomeWins $ summaryOutcome summary}
-                <td .outcome>#{view outcomeLosses $ summaryOutcome summary}
+                $with o <- summaryOutcome summary
+                  $with (w,l) <- (view outcomeWins o, view outcomeLosses o)
+                    <td :isZero w:.quiet .outcome>#{w}
+                    <td :isZero l:.quiet .outcome>#{l}
 |]
+
+isZero :: Int -> Bool
+isZero z = z == 0
 
 formatTournamentTitle :: Day -> String
 formatTournamentTitle day = "Tournament Results - " ++ formatLongDay day
@@ -179,9 +195,9 @@ formatLaw law = showRound (lawMean law) ++ "±" ++ showRound (lawStddev law)
 
 formatDelta :: Double -> Html
 formatDelta d = case compare d 0 of
-  LT -> [shamlet| <span .negative>-#{showRound (abs d)} |] -- abs and explicit - makes sure you get a -0
+  LT -> [shamlet| <span .negative>#{showRound (abs d)} |]
   EQ -> [shamlet| 0 |]
-  GT -> [shamlet| +#{showRound d} |]
+  GT -> [shamlet| #{showRound d} |]
 
 formatDeltaOp :: Double -> String
 formatDeltaOp d

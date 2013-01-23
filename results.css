@@ -34,6 +34,7 @@ div.resultbox table th {
   color: white;
   padding-left: 0.3em;
   padding-right: 0.3em;
+  vertical-align: bottom;
 }
 div.resultbox table td {
   border: 1px solid rgb(152, 191, 33);
@@ -75,6 +76,7 @@ table.summary th {
   color: white;
   padding-left: 0.3em;
   padding-right: 0.3em;
+  vertical-align: bottom;
 }
 
 table.summary tr.alt td {
@@ -89,4 +91,12 @@ table.summary td {
 
 span.negative {
   color: red;
+}
+
+th.colgroup {
+  border-bottom: 1px solid rgb(234, 242, 211);
+}
+
+.quiet {
+  color: #bbbbbb;
 }

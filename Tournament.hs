@@ -21,7 +21,7 @@ data PlayerSummary name = PlayerSummary
 
 data MatchSummary = MatchSummary
   { summaryAdjustedLaw  :: Law
-  , summaryPointChange  :: Double
+  , summaryMeanChange, summaryStddevChange :: Double
   , summaryOutcome      :: Outcome
   }
 
@@ -70,7 +70,8 @@ updatePlayer nearlyAdjustedLaws outcomes laws playerName opponents
     ( finalLaw
     , MatchSummary
         { summaryAdjustedLaw    = opponentAdjustedLaw
-        , summaryPointChange    = lawMean finalLaw - lawMean accLaw
+        , summaryMeanChange     = lawMean   finalLaw - lawMean   accLaw
+        , summaryStddevChange   = lawStddev finalLaw - lawStddev accLaw
         , summaryOutcome        = outcome
         })
     where
@@ -102,8 +103,8 @@ degradeLaw today lastUpdate law = timeEffect days law
   where
   days = fromIntegral $ diffDays today lastUpdate
 
-updateLawsForTournament :: Ord name => [Match name] -> Map name Law -> Map name (PlayerSummary name)
-updateLawsForTournament tournament laws = imap (updatePlayer firstPassLaws outcomes laws) outcomes
+evaluateTournament :: Ord name => [Match name] -> Map name Law -> Map name (PlayerSummary name)
+evaluateTournament tournament laws = imap (updatePlayer firstPassLaws outcomes laws) outcomes
   where
   outcomes = matchOutcomes tournament
   firstPassLaws = imap (firstPass laws) outcomes
@@ -122,17 +123,13 @@ defaultEmpty :: Iso' (Maybe (Map k v)) (Map k v)
 defaultEmpty = anon Map.empty Map.null
 
 getLaw :: Ord name => name -> Map name Law -> Law
-getLaw n laws = fromMaybe defaultLaw (view (at n) laws)
+getLaw n m = fromMaybe defaultLaw $ Map.lookup n m
 
-traverseKeys :: (Ord a, Ord b, Applicative f) =>
-  LensLike f (Map a v) (Map b v) a b
+traverseKeys :: Ord b => Traversal (Map a v) (Map b v) a b
 traverseKeys f = fmap Map.fromList . (traverse . _1) f . Map.toList
 
-tournamentNameTraversal :: (Ord a, Ord b, Applicative f) =>
-  LensLike f (Map a (PlayerSummary a)) (Map b (PlayerSummary b)) a b
+tournamentNameTraversal :: Ord b =>
+  Traversal (Map a (PlayerSummary a)) (Map b (PlayerSummary b)) a b
 tournamentNameTraversal f = fmap Map.fromList . traverse fixEntry . Map.toList
   where
-  fixEntry = traversePair f (summaryMatches (traverseKeys f))
-
-traversePair :: Applicative f => (a -> f b) -> (c -> f d) -> (a,c) -> f (b,d)
-traversePair f g (x,y) = (,) <$> f x <*> g y
+  fixEntry = beside id (summaryMatches . traverseKeys) f
