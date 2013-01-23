@@ -26,7 +26,8 @@ main = serverWith
   case url_path of
     "match" | Just w <- lookup "winner" url_params
             , Just l <- lookup "loser" url_params ->
-             do saveMatch w l
+             do print (w,l)
+                saveMatch w l
                 return good
 
     "delete" | Just dtxt <- lookup "day" url_params
