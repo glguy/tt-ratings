@@ -39,6 +39,14 @@ deserializeRow str =
            return (i,(day,law))
     _ -> Nothing
 
+serializeRow1 :: Law -> String
+serializeRow1 law
+  = shows (lawMean law)
+  . showString ","
+  . shows (lawStddev law)
+  $ foldr (\p -> showString "," . shows p) ""
+          (lawElems law)
+
 deserializeRow1 :: String -> Maybe Law
 deserializeRow1 str =
   case S.splitOn "," str of

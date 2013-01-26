@@ -1,1 +1,5 @@
 .*.swp
+/dist
+/matches
+/data
+/output

@@ -2,6 +2,7 @@
 import Control.Applicative
 import Control.Exception
 import Control.Lens
+import Control.Monad.IO.Class
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import Data.Time
@@ -37,8 +38,8 @@ main = serverWith
                 return good
 
     "delete" | Just mid <- fmap MatchId . readMaybe =<< lookup "matchid" url_params ->
-             do match <- getMatchById mid
-                deleteMatchById mid
+             do match <- withDatabase $ do match <- getMatchById mid
+                                           deleteMatchById mid
                 putStrLn $ "Deleted " ++ show match
                 return good
 
@@ -73,17 +74,17 @@ main = serverWith
                    }
 
 mainPage :: IO Html
-mainPage =
-  do t   <- zonedTimeToLocalTime <$> getZonedTime
+mainPage = withDatabase $
+  do t   <- liftIO $ zonedTimeToLocalTime <$> getZonedTime
+     tz  <- liftIO $ getCurrentTimeZone
      ms  <- getMatchesForDay (localDay t)
      ps  <- getPlayerList
-     tz  <- getCurrentTimeZone
-     thePage ps $ formatMatches tz (localDay t) ms
+     liftIO $ thePage ps $ formatMatches tz (localDay t) ms
 
 saveMatch :: String -> String -> IO MatchId
-saveMatch winner loser = do
-  Just eventId <- getCurrentEventId
-  _matchTime   <- getCurrentTime
+saveMatch winner loser = withDatabase $ do
+  _matchTime        <- liftIO getCurrentTime
+  Just eventId      <- getCurrentEventId
   Just _matchWinner <- getPlayerIdByName $ Text.pack winner
   Just _matchLoser  <- getPlayerIdByName $ Text.pack loser
   addMatchToEvent Match{..} eventId

@@ -2,6 +2,7 @@
 module Main where
 
 import Control.Lens
+import Control.Monad.IO.Class
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
@@ -18,47 +19,55 @@ import Event
 import DataStore
 
 data Config = Config
-  { today :: Day
-  , currentEventId :: EventId
+  { currentEventId :: EventId
   , resultsFn, ratingsFn :: FilePath
   }
 
 main :: IO ()
-main = do
-  config <- getConfig
+main = withDatabase $ do
+  config <- liftIO getConfig
 
   playerMap    <- getPlayerMap
+  event        <- do mb <- getEventById $ currentEventId config
+                     case mb of
+                       Nothing -> fail "No such event"
+                       Just x -> return x
   previousLaws <- getLawsForEvent $ currentEventId config
   matches      <- getMatchesByEventId $ currentEventId config
 
-  let degradedDayLaws = fmap (\(day,law) -> (day, degradeLaw (today config) day law)) previousLaws
+  let today = view eventDay event
+
+  let degradedDayLaws = fmap (\(day,law) -> (day, degradeLaw today day law)) previousLaws
       degradedLaws    = fmap snd degradedDayLaws
       results         = evaluateTournament matches degradedLaws
 
       -- Map.union is left biased, only update laws for those who
       -- played today
-      selectLawFromResults s = (today config,view summaryFinalLaw s)
-      newLaws      = Map.union (fmap selectLawFromResults results) previousLaws
+      selectLawFromResults s = (today,view summaryFinalLaw s)
+      newLawsFromEvent = fmap selectLawFromResults results
+      newLaws      = Map.union newLawsFromEvent previousLaws
 
       -- We display degraded laws but we don't serialize them
       -- This way only one degrade operation occurs between events per law
-      todaysLaws   = Map.union (fmap selectLawFromResults results) degradedDayLaws
+      todaysLaws   = Map.union newLawsFromEvent degradedDayLaws
 
   namedResults <- nameResults playerMap results
   namedNewLaws <- nameMap playerMap newLaws
   namedTodaysLaws <- nameMap playerMap todaysLaws
 
-  writeFile (ratingsFn config) $ ratingsHtml (today config) namedTodaysLaws
-  writeFile (resultsFn config) $ tournamentHtml (today config) namedResults
+  clearLawsForEvent $ currentEventId config
+  ifor newLawsFromEvent $ \playerId (_day,law) -> addLaw playerId (currentEventId config) law
+
+  liftIO $ writeFile (ratingsFn config) $ ratingsHtml today namedTodaysLaws
+  liftIO $ writeFile (resultsFn config) $ tournamentHtml today namedResults
   -- writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
 
 getConfig :: IO Config
 getConfig = do
   args <- getArgs
   case args of
-    [dayStr, currentEventStr, resultsFn, ratingsFn] ->
-      do today <- parseDay dayStr
-         let currentEventId = EventId $ read currentEventStr
+    [currentEventStr, resultsFn, ratingsFn] ->
+      do let currentEventId = EventId $ read currentEventStr
          return Config {..}
     _ -> fail "usage: tt-ratings DAY OLD_LAWS NEW_LAWS RESULTS RATINGS"
 
@@ -67,7 +76,7 @@ nameMap names
   = maybe (fail "nameMap: missing names") return
   . traverseKeys (flip Map.lookup names)
 
-nameResults :: (Ord k, Ord v) => Map k v -> Map k (PlayerSummary k) -> IO (Map v (PlayerSummary v))
+nameResults :: Monad m => (Ord k, Ord v) => Map k v -> Map k (PlayerSummary k) -> m (Map v (PlayerSummary v))
 nameResults players
   = maybe (fail "Unknown player number") return
   . tournamentNameTraversal (flip Map.lookup players)
