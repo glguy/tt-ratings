@@ -1,18 +1,22 @@
 module Output.GraphLawCurves where
 
-import Data.List
-import qualified Data.Map as Map
-import Data.Map ( Map )
-import Law
+import Control.Lens (view)
+import Data.List (intercalate)
 import Data.List (sortBy)
+import Data.Map ( Map )
 import Data.Ord (comparing)
+import Law
+import qualified Data.Map as Map
 
-generateFlotData :: Map String Law -> String
+import Player
+
+generateFlotData :: Map Player Law -> String
 generateFlotData laws = "var data = [ " ++ intercalate "  \n," (map generatePlayerData (Map.toList laws)) ++ " ];"
 
-generatePlayerData :: (String, Law) -> String
-generatePlayerData (name,law) = "player(" ++ show name ++ ", " ++ generateLawData law ++ ")"
+generatePlayerData :: (Player, Law) -> String
+generatePlayerData (player,law) = "player(" ++ show (view playerName player) ++ ", " ++ generateLawData law ++ ")"
 
+generateLawData :: Law -> String
 generateLawData law = show (zipWith (\k v -> [fromIntegral k,v]) omega (lawElems law))
 
 generateSimpleFlotData :: Map String Law -> String

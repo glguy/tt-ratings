@@ -22,6 +22,7 @@ formatShortMonth m = case m of
     10 -> "Oct"
     11 -> "Nov"
     12 -> "Dec"
+    _  -> error "formatShortMonth: bad month number"
 
 formatMonth :: Int -> String
 formatMonth m = case m of
@@ -37,6 +38,7 @@ formatMonth m = case m of
     10 -> "October"
     11 -> "November"
     12 -> "December"
+    _  -> error "formatMonth: bad month number"
 
 formatWeekday :: Int -> String
 formatWeekday w = case w of
@@ -47,6 +49,7 @@ formatWeekday w = case w of
     5 -> "Friday"
     6 -> "Saturday"
     7 -> "Sunday"
+    _  -> error "formatWeekday: bad day number"
 
 formatLongDay :: Day -> String
 formatLongDay day

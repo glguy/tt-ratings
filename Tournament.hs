@@ -2,14 +2,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Tournament where
 
-import Control.Applicative
-import Control.Monad ((<=<))
 import Control.Lens
 import Data.List (foldl')
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
-import Data.Traversable
 import Law
 import Match
 import qualified Data.Map as Map
@@ -50,21 +47,20 @@ matchOutcomes = foldl' addMatch Map.empty
 updatePlayer ::
   Ord name =>
   Map name Law     {- ^ Nearly adjusted laws -} ->
-  Map name (Map name Outcome)  {- ^ Outcome map for the tournament -} ->
   Map name Law     {- ^ Initial laws going into the tournament -} ->
   name             {- ^ Name of player to update -} ->
   Map name Outcome {- ^ outcomes for games played by this player -} ->
   PlayerSummary name
-updatePlayer nearlyAdjustedLaws outcomes laws playerName opponents
+updatePlayer nearlyAdjustedLaws laws playerName opponents
   = PlayerSummary
-      { _summaryInitialLaw = initialLaw
-      , _summaryFinalLaw = finalLaw
+      { _summaryInitialLaw = initial
+      , _summaryFinalLaw = final
       , _summaryMatches = matchSummaries
       }
   where
-  initialLaw = getLaw playerName laws
+  initial = getLaw playerName laws
 
-  (finalLaw, matchSummaries) = imapAccumL computeMatchSummary initialLaw opponents
+  (final, matchSummaries) = imapAccumL computeMatchSummary initial opponents
 
   computeMatchSummary opponentName accLaw outcome =
     ( finalLaw
@@ -79,7 +75,7 @@ updatePlayer nearlyAdjustedLaws outcomes laws playerName opponents
                               $ Map.lookup opponentName nearlyAdjustedLaws
     opponentAdjustedLaw = lawUnupdate LawUpdate
           { playerLaw   = opponentNearlyAdjustedLaw
-          , opponentLaw = initialLaw
+          , opponentLaw = initial
           , updateOutcome = flipOutcome outcome
           }
     finalLaw = lawUpdate LawUpdate
@@ -104,7 +100,7 @@ degradeLaw today lastUpdate law = timeEffect days law
   days = fromIntegral $ diffDays today lastUpdate
 
 evaluateTournament :: Ord name => [Match name] -> Map name Law -> Map name (PlayerSummary name)
-evaluateTournament tournament laws = imap (updatePlayer firstPassLaws outcomes laws) outcomes
+evaluateTournament tournament laws = imap (updatePlayer firstPassLaws laws) outcomes
   where
   outcomes = matchOutcomes tournament
   firstPassLaws = imap (firstPass laws) outcomes

@@ -14,7 +14,7 @@ import LawSerialization
 
 import Control.Applicative
 import Control.Lens
-import Control.Monad (join, liftM, ap, unless)
+import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad.Trans.Maybe
@@ -130,14 +130,14 @@ getActivePlayerIds =
                            \    OR playerId IN (SELECT loserId FROM match)"
 
 getLawsForEvent :: DatabaseM m => EventId -> m (Map PlayerId (Day, Law))
-getLawsForEvent eventId = do
+getLawsForEvent topEventId = do
   playerIds <- getActivePlayerIds
 
   now <- liftIO $ zonedTimeToLocalTime <$> getZonedTime
   let today = localDay now
 
   fmap Map.fromList $ for playerIds $ \playerId -> do
-    law <- fromMaybeT (today, defaultLaw) $ search playerId =<< parentEvent eventId
+    law <- fromMaybeT (today, defaultLaw) $ search playerId =<< parentEvent topEventId
     return (playerId, law)
   where
 
@@ -171,6 +171,8 @@ addLaw playerId eventId law =
 
 
 newtype DatabaseT m a = DatabaseT (Connection -> m a)
+
+runDatabaseT :: Connection -> DatabaseT m a -> m a
 runDatabaseT con (DatabaseT f) = f con
 
 instance MonadIO m => MonadIO (DatabaseT m) where
@@ -242,8 +244,8 @@ instance FromField PlayerId where fromField = fmap PlayerId . fromField
 instance FromField MatchId  where fromField = fmap MatchId . fromField
 
 instance FromField Player where
-  fromField field = do _playerName <- fromField field
-                       return Player {..}
+  fromField f = do _playerName <- fromField f
+                   return Player {..}
 
 instance FromField p => FromRow (Match p) where
   fromRow = do _matchWinner <- field

@@ -5,7 +5,6 @@ import Law
 import Player
 import Output.Formatting
 import Data.List (sortBy)
-import Data.Foldable (foldMap)
 import Data.Ord (comparing)
 import Data.Time.Calendar
 import Data.List.Split (chunksOf)
@@ -17,6 +16,7 @@ import qualified Data.Map as Map
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import Text.Blaze.Html (preEscapedToHtml)
 
+tournamentColumns :: Int
 tournamentColumns = 2
 
 metaTags :: Html
@@ -70,9 +70,10 @@ $doctype 5
   title       = "Player List - " ++ formatLongDay day
   byScore     = flip (comparing (lawScore . snd . snd))
   rows        = imap mkRow $ sortBy byScore $ Map.toList laws
-  mkRow i (name,(day,law)) = (i,name,day,law)
+  mkRow i (name,(d,law)) = (i,name,d,law)
   rowLaw (_,_,_,law) = law
 
+graphScript :: [Law] -> String
 graphScript laws
   = unlines
   $ "$(document).ready(function drawGraphs() {"

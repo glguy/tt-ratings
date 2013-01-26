@@ -4,17 +4,12 @@ module Main where
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.Map (Map)
-import Data.Maybe (fromMaybe)
-import Data.Time.Calendar
-import LawSerialization
 import System.Environment
 import Tournament
 import Output.GraphLawCurves
 import Output.TournamentSummaryHtml
 import qualified Data.Map as Map
 
-import Law
-import Match
 import Event
 import DataStore
 
@@ -45,22 +40,20 @@ main = withDatabase $ do
       -- played today
       selectLawFromResults s = (today,view summaryFinalLaw s)
       newLawsFromEvent = fmap selectLawFromResults results
-      newLaws      = Map.union newLawsFromEvent previousLaws
 
       -- We display degraded laws but we don't serialize them
       -- This way only one degrade operation occurs between events per law
       todaysLaws   = Map.union newLawsFromEvent degradedDayLaws
 
   namedResults <- nameResults playerMap results
-  namedNewLaws <- nameMap playerMap newLaws
   namedTodaysLaws <- nameMap playerMap todaysLaws
 
   clearLawsForEvent $ currentEventId config
-  ifor newLawsFromEvent $ \playerId (_day,law) -> addLaw playerId (currentEventId config) law
+  ifor_ newLawsFromEvent $ \playerId (_day,law) -> addLaw playerId (currentEventId config) law
 
   liftIO $ writeFile (ratingsFn config) $ ratingsHtml today namedTodaysLaws
   liftIO $ writeFile (resultsFn config) $ tournamentHtml today namedResults
-  -- writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
+  liftIO $ writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
 
 getConfig :: IO Config
 getConfig = do
