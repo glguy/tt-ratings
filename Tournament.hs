@@ -10,8 +10,8 @@ import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
 import Data.Traversable
-import DB (Match(..))
 import Law
+import Match
 import qualified Data.Map as Map
 
 data PlayerSummary name = PlayerSummary
@@ -41,8 +41,8 @@ matchOutcomes = foldl' addMatch Map.empty
   look w l = at w . defaultEmpty . at l . non noOutcome
 
   addMatch outcomes match = updateWinner match . updateLoser match $ outcomes
-  updateWinner match = look (winner match) (loser  match) . outcomeWins   +~ 1
-  updateLoser  match = look (loser  match) (winner match) . outcomeLosses +~ 1
+  updateWinner match = look (view matchWinner match) (view matchLoser  match) . outcomeWins   +~ 1
+  updateLoser  match = look (view matchLoser  match) (view matchWinner match) . outcomeLosses +~ 1
 
 -- | Compute a final law and match summary set for a player
 -- given the tournament information, initial laws, and player\'s

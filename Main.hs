@@ -2,11 +2,9 @@
 module Main where
 
 import Control.Lens
-import DB
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
-import Law
 import GraphData
 import LawSerialization
 import System.Environment
@@ -14,18 +12,24 @@ import Tournament
 import TournamentSummaryHtml
 import qualified Data.Map as Map
 
+import Law
+import Match
+import Event
+import DataStore
+
 data Config = Config
   { today :: Day
-  , previousLawsFn, newLawsFn, resultsFn, ratingsFn :: FilePath
+  , currentEventId :: EventId
+  , resultsFn, ratingsFn :: FilePath
   }
 
 main :: IO ()
 main = do
   config <- getConfig
 
-  playerMap    <- loadPlayerMap
-  previousLaws <- loadLaws $ previousLawsFn config
-  matches      <- loadMatches $ today config
+  playerMap    <- getPlayerMap
+  previousLaws <- getLawsForEvent $ currentEventId config
+  matches      <- getMatchesByEventId $ currentEventId config
 
   let degradedDayLaws = fmap (\(day,law) -> (day, degradeLaw (today config) day law)) previousLaws
       degradedLaws    = fmap snd degradedDayLaws
@@ -46,39 +50,24 @@ main = do
 
   writeFile (ratingsFn config) $ ratingsHtml (today config) namedTodaysLaws
   writeFile (resultsFn config) $ tournamentHtml (today config) namedResults
-  writeFile (newLawsFn config) $ serializeLaws newLaws
   -- writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
 
 getConfig :: IO Config
 getConfig = do
   args <- getArgs
   case args of
-    [dayStr, previousLawsFn, newLawsFn, resultsFn, ratingsFn] ->
+    [dayStr, currentEventStr, resultsFn, ratingsFn] ->
       do today <- parseDay dayStr
+         let currentEventId = EventId $ read currentEventStr
          return Config {..}
     _ -> fail "usage: tt-ratings DAY OLD_LAWS NEW_LAWS RESULTS RATINGS"
-
-loadPlayerMap :: IO (Map Int String)
-loadPlayerMap = do
-  players <- getPlayers
-  return (Map.fromList [(playerId player, playerName player) | player <- players])
-
-loadMatches :: Day -> IO [Match Int]
-loadMatches day = fmap (fmap snd) (getMatches day)
-
-loadLaws :: FilePath -> IO (Map Int (Day, Law))
-loadLaws fn = do
-  txt <- readFile fn
-  case deserializeLaws txt of
-    Just laws   -> return laws
-    Nothing     -> fail "Unable to parse laws"
 
 nameMap :: (Monad m, Ord k, Ord k') => Map k k' -> Map k v -> m (Map k' v)
 nameMap names
   = maybe (fail "nameMap: missing names") return
   . traverseKeys (flip Map.lookup names)
 
-nameResults :: Map Int String -> Map Int (PlayerSummary Int) -> IO (Map String (PlayerSummary String))
+nameResults :: (Ord k, Ord v) => Map k v -> Map k (PlayerSummary k) -> IO (Map v (PlayerSummary v))
 nameResults players
   = maybe (fail "Unknown player number") return
   . tournamentNameTraversal (flip Map.lookup players)

@@ -2,6 +2,7 @@
 module TournamentSummaryHtml where
 
 import Law
+import Player
 import Formatting
 import Data.List (sortBy)
 import Data.Foldable (foldMap)
@@ -25,7 +26,7 @@ metaTags = [shamlet|
   <meta http-equiv="Content-Language" content="en" />
 |]
 
-ratingsHtml :: Day -> Map String (Day,Law) -> String
+ratingsHtml :: Day -> Map Player (Day,Law) -> String
 ratingsHtml day laws = renderHtml [shamlet|
 $doctype 5
 <html>
@@ -52,7 +53,7 @@ $doctype 5
       <tbody>
         $forall (i,name,lastday,law) <- rows
           <tr :odd i:.alt>
-            <td .str>#{name}
+            <td .str>#{view playerName name}
             <td .num>#{showRound $ lawMean law}
             <td .num>#{showRound $ lawStddev law}
             <td .num>#{showRound $ lawScore law}
@@ -103,7 +104,7 @@ graphScript laws
       ,"};"
       ]
 
-tournamentHtml :: Day -> Map String (PlayerSummary String) -> String
+tournamentHtml :: Day -> Map Player (PlayerSummary Player) -> String
 tournamentHtml day results = renderHtml [shamlet|
 $doctype 5
 $with title <- formatTournamentTitle day
@@ -138,7 +139,7 @@ $with title <- formatTournamentTitle day
       $forall (i,(name,summ)) <- itoList $ Map.toList results
          $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
           <tr :odd i:.alt>
-            <td .opponent>#{name}
+            <td .opponent>#{view playerName name}
             <td .rating>#{showRound $ lawMean   initial}
             <td .rating>#{showRound $ lawStddev initial}
             <td .delta>^{formatDelta $ lawMean final - lawMean initial}
@@ -154,7 +155,7 @@ $with title <- formatTournamentTitle day
        $forall (name,summ) <- row
         <td>
          <div .resultbox>
-          <span .playername>#{name}
+          <span .playername>#{view playerName name}
           <table .matchbox>
             <tr>
               <th rowspan=2>Δμ
@@ -172,7 +173,7 @@ $with title <- formatTournamentTitle day
                 <td .delta>^{formatDelta $ summaryStddevChange summary}
                 <td .quiet .rating>#{showRound $ lawMean   $ summaryAdjustedLaw summary}
                 <td .quiet .rating>#{showRound $ lawStddev $ summaryAdjustedLaw summary}
-                <td .opponent>#{opponentName}
+                <td .opponent>#{view playerName opponentName}
                 $with o <- summaryOutcome summary
                   $with (w,l) <- (view outcomeWins o, view outcomeLosses o)
                     <td :isZero w:.quiet .outcome>#{w}

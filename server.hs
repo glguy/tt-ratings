@@ -1,22 +1,25 @@
 {-# LANGUAGE RecordWildCards, PatternGuards, QuasiQuotes #-}
+import Control.Applicative
+import Control.Exception
+import Control.Lens
+import Data.List (sortBy)
+import Data.Ord (comparing)
+import Data.Time
+import Data.Time
+import Data.Time.Calendar (Day)
 import Network.HTTP.Server
 import Network.HTTP.Server.Logger
 import Network.URL
-import Data.Time
-import Data.List (sortBy)
-import Data.Ord (comparing)
-import Text.Hamlet (shamlet, Html)
+import System.Locale
 import Text.Blaze.Html.Renderer.String (renderHtml)
-import Data.Time.Calendar (Day)
-import Control.Applicative
-
+import Text.Hamlet (shamlet, Html)
 import Text.Read(readMaybe)
-import Control.Exception
-import Control.Lens
+import qualified Data.Text as Text
 
-import DB
 import Formatting
-import ExportMatches
+import Player
+import Match
+import DataStore
 
 main :: IO ()
 main = serverWith
@@ -33,16 +36,17 @@ main = serverWith
                 putStrLn $ "Saving " ++ show (w,l)
                 return good
 
-    "delete" | Just dtxt <- lookup "day" url_params
-             , Just d <- readMaybe dtxt
-             , Just f <- lookup "match" url_params ->
-             do delMatch d f
-                putStrLn $ "Deleted " ++ show (d,f)
+    "delete" | Just mid <- fmap MatchId . readMaybe =<< lookup "matchid" url_params ->
+             do match <- getMatchById mid
+                deleteMatchById mid
+                putStrLn $ "Deleted " ++ show match
                 return good
 
+{-
     "exportmatches" ->
       do ms <- exportMatches
          return $ ok $ show $ over (mapped . _1) show ms
+-}
 
     _ -> ok . renderHtml <$> mainPage
   `catch` \(SomeException e) -> return (bad (show e))
@@ -70,31 +74,42 @@ main = serverWith
 
 mainPage :: IO Html
 mainPage =
-  do t   <- getLocalTime
-     ms  <- getMatches (localDay t)
-     ps  <- getPlayers
-     msR <- mapM (\(x,m) -> (,) x `fmap` resolveMatch ps m) ms
-     thePage ps $ formatMatches (localDay t) msR
+  do t   <- zonedTimeToLocalTime <$> getZonedTime
+     ms  <- getMatchesForDay (localDay t)
+     ps  <- getPlayerList
+     tz  <- getCurrentTimeZone
+     thePage ps $ formatMatches tz (localDay t) ms
+
+saveMatch :: String -> String -> IO MatchId
+saveMatch winner loser = do
+  Just eventId <- getCurrentEventId
+  _matchTime   <- getCurrentTime
+  Just _matchWinner <- getPlayerIdByName $ Text.pack winner
+  Just _matchLoser  <- getPlayerIdByName $ Text.pack loser
+  addMatchToEvent Match{..} eventId
 
 --------------------------------------------------------------------------------
 
-formatMatch :: Day -> Int -> FilePath -> Match String -> Html
-formatMatch d i f Match { .. } = [shamlet|
+formatMatch :: TimeZone -> Day -> Int -> MatchId -> Match Player -> Html
+formatMatch tz d i (MatchId mid) match = [shamlet|
   <tr :odd i:.alt>
-    <td>#{time}
-    <td>#{winner}
-    <td>#{loser}
+    <td>#{t}
+    <td>#{w}
+    <td>#{l}
     <td>
       <a .delete href=#{exportURL delUrl}>delete
 |]
   where
+  t = view (matchTime   . to (formatTime defaultTimeLocale "%X" . utcToLocalTime tz)) match
+  w = view (matchWinner . playerName) match
+  l = view (matchLoser  . playerName) match
   delUrl = URL { url_type   = HostRelative
                , url_path   = "delete"
-               , url_params = [("day", show d), ("match",f)]
+               , url_params = [("matchid", show mid)]
                }
 
-formatMatches :: Day -> [(FilePath, Match String)] -> Html
-formatMatches d xs = [shamlet|
+formatMatches :: TimeZone -> Day -> [(MatchId, Match Player)] -> Html
+formatMatches tz d xs = [shamlet|
 <h2>Matches for #{formatLongDay d}
   <table>
     <tr>
@@ -103,10 +118,10 @@ formatMatches d xs = [shamlet|
       <th>Loser
       <th>Actions
     $forall (i,(fn,m)) <- itoList $ sortBy (flip byTime) xs
-      ^{formatMatch d i fn m}
+      ^{formatMatch tz d i fn m}
 |]
   where
-  byTime = comparing (time . snd)
+  byTime = comparing (view matchTime . snd)
 
 thePage :: [Player] -> Html -> IO Html
 thePage ps table =
@@ -127,8 +142,8 @@ thePage ps table =
         <label for=loser>Loser:
         <input autocomplete=off list=players name=loser  #loser>
         <datalist #players>
-          $forall p <- map playerName ps
-            <option value=#{p}>
+          $forall p <- ps
+            <option value=#{view playerName p}>
         <input type=submit #submit value=Record>
     ^{table}
 |]

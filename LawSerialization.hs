@@ -39,6 +39,17 @@ deserializeRow str =
            return (i,(day,law))
     _ -> Nothing
 
+deserializeRow1 :: String -> Maybe Law
+deserializeRow1 str =
+  case S.splitOn "," str of
+    meanStr:stddevStr:ps
+      | length ps == 361 -> do
+           let ds = fmap read ps
+           return $ Law { lawRaw = listArray (0,360) ds
+                         , lawMean = read meanStr
+                         , lawStddev = read stddevStr }
+    _ -> Nothing
+
 parseDay :: Monad m => String -> m Day
 parseDay str = case S.splitOn "-" str of
   [y,m,d] -> return $ fromGregorian (read y) (read m) (read d)
