@@ -16,8 +16,10 @@ import Text.Blaze.Html.Renderer.String (renderHtml)
 import Text.Hamlet (shamlet, Html)
 import Text.Read(readMaybe)
 import qualified Data.Text as Text
+import qualified Data.Map as Map
 
 import Output.Formatting
+import Output.ExportMatches
 import Player
 import Match
 import DataStore
@@ -43,11 +45,14 @@ main = serverWith
                 putStrLn $ "Deleted " ++ show match
                 return good
 
-{-
+    "exportplayers" ->
+      do ms <- withDatabase getPlayerMap
+         return $ ok $ show
+           [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
+
     "exportmatches" ->
-      do ms <- exportMatches
-         return $ ok $ show $ over (mapped . _1) show ms
--}
+      do ms <- withDatabase exportMatches
+         return $ ok $ show ms
 
     _ -> ok . renderHtml <$> mainPage
   `catch` \(SomeException e) -> return (bad (show e))

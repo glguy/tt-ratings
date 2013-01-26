@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module DataStore where
 
@@ -9,22 +11,23 @@ import Match
 import Player
 
 import LawSerialization
-import Control.Monad.Trans.Maybe
 
 import Control.Applicative
-import Control.Monad.Trans (MonadTrans(lift))
+import Control.Lens
 import Control.Monad (join, liftM, ap)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Data.Traversable (for)
-import Data.Maybe (fromMaybe, listToMaybe)
-import Database.SQLite.Simple
-import Database.SQLite.Simple.ToField
-import Database.SQLite.Simple.FromField
+import Control.Monad.Trans (MonadTrans(lift))
+import Control.Monad.Trans.Maybe
 import Data.Int (Int64)
-import Data.Time
-import Data.Text (Text)
-import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Text (Text)
+import Data.Time
+import Data.Traversable (for)
+import Database.SQLite.Simple
+import Database.SQLite.Simple.FromField
+import Database.SQLite.Simple.ToField
+import qualified Data.Map as Map
 
 dbName = "pingpong.db"
 
@@ -41,12 +44,10 @@ getPlayerMap :: DatabaseM m => m (Map PlayerId Player)
 getPlayerMap =
      Map.fromList <$> query_' "SELECT playerId, playerName FROM player"
 
-{-
-getEvents :: IO [(EventId, Event)]
-getEvents = withConnection dbName $ \db ->
-  do xs <- query db "SELECT playerId, playerName FROM player" ()
-     return [(PlayerId i, Player { .. }) | (i,_playerName) <- xs]
--}
+getEvents :: DatabaseM m => m [(EventId, Event EventId)]
+getEvents =
+  do xs <- query_' "SELECT eventId, eventName, eventDay, eventActive, previousEventId FROM event"
+     return [(i,event) | Only i :. event <- xs]
 
 addEvent :: DatabaseM m => Event EventId -> m EventId
 addEvent Event{..} =
@@ -224,6 +225,10 @@ fromMaybeT x m = fromMaybe x <$> runMaybeT m
 newtype EventId  = EventId  Int64 deriving (Read, Show, Eq, Ord)
 newtype PlayerId = PlayerId Int64 deriving (Read, Show, Eq, Ord)
 newtype MatchId  = MatchId  Int64 deriving (Read, Show, Eq, Ord)
+
+makeWrapped ''EventId
+makeWrapped ''PlayerId
+makeWrapped ''MatchId
 
 instance ToField EventId  where toField (EventId  i) = toField i
 instance ToField PlayerId where toField (PlayerId i) = toField i
