@@ -33,6 +33,7 @@ $doctype 5
   <head>
     ^{metaTags}
     <title>#{title}
+    <link rel=stylesheet href=common.css>
     <link rel=stylesheet href=ratings.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
     <script language=javascript src=flot/jquery.flot.js>
@@ -41,7 +42,7 @@ $doctype 5
     <script language=javascript>$(document).ready(function(){ $("#players-table").tablesorter();});
   <body>
     <h1>#{title}
-    <table #players-table>
+    <table #players-table .data>
       <thead>
        <tr>
          <th>Player
@@ -112,6 +113,7 @@ $with title <- formatTournamentTitle day
   <head>
     ^{metaTags}
     <title>#{title}
+    <link rel=stylesheet type=text/css href=common.css>
     <link rel=stylesheet type=text/css href=results.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
   <body>
@@ -124,7 +126,7 @@ $with title <- formatTournamentTitle day
 |]
   where
   summary = [shamlet|
-    <table .summary>
+    <table .summary .data>
       <tr>
         <th rowspan=2>Name
         <th .colgroup colspan=2>Initial
@@ -156,7 +158,7 @@ $with title <- formatTournamentTitle day
         <td>
          <div .resultbox>
           <span .playername>#{view playerName name}
-          <table .matchbox>
+          <table .matchbox .data>
             <tr>
               <th rowspan=2>Δμ
               <th rowspan=2>Δσ

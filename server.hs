@@ -20,6 +20,7 @@ import qualified Data.Map as Map
 
 import Output.Formatting
 import Output.ExportMatches
+import Output.Events
 import Player
 import Match
 import DataStore
@@ -53,6 +54,10 @@ main = serverWith
     "exportmatches" ->
       do ms <- withDatabase exportMatches
          return $ ok $ show ms
+
+    "events" ->
+             do events <- withDatabase getEvents
+                return $ ok $ eventsPage events
 
     _ -> ok . renderHtml <$> mainPage
   `catch` \(SomeException e) -> return (bad (show e))

@@ -15,7 +15,7 @@ import Match
 exportMatches :: DatabaseM m => m [(Text, String, [(Int64, Int64)])]
 exportMatches =
   do events <- getEvents
-     for events $ \(eventId, event) ->
+     for (Map.toList events) $ \(eventId,event) ->
        do matches <- getMatchesByEventId eventId
           return ( view eventName event
                  , show (view eventDay  event)

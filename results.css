@@ -1,11 +1,3 @@
-body {
-  background-color: rgb(220,230,255);
-}
-
-h1 {
-        border-bottom: 1px solid black;
-}
-
 table.results {
  width: 100%;
 }
@@ -23,70 +15,25 @@ div.resultbox span.playername {
 }
 
 div.resultbox table {
-  text-align: center;
   margin-left: auto;
   margin-right: auto;
-  border-collapse: collapse;
-}
-
-div.resultbox table th {
-  background-color: rgb(167, 201, 66);
-  color: white;
-  padding-left: 0.3em;
-  padding-right: 0.3em;
-  vertical-align: bottom;
-}
-div.resultbox table td {
-  border: 1px solid rgb(152, 191, 33);
-  background-color: white;
 }
 
 td.delta {
   text-align: right;
 }
 
-table.matchbox td {
-	padding-left: 0.5em;
-	padding-right: 0.5em;
-}
-
-div.resultbox table tr.alt td {
-  background-color: rgb(234, 242, 211);
-}
-
 td.outcome {
-	text-align: center;
+  text-align: center;
 }
 
 td.opponent {
-	text-align: left;
+  text-align: left;
 }
 
 table.summary {
-  text-align: center;
   margin-left: auto;
   margin-right: auto;
-  border-collapse: collapse;
-  border: 1px solid rgb(167, 201, 66);
-  background-color: white;
-}
-
-table.summary th {
-  background-color: rgb(167, 201, 66);
-  color: white;
-  padding-left: 0.3em;
-  padding-right: 0.3em;
-  vertical-align: bottom;
-}
-
-table.summary tr.alt td {
-  background-color: rgb(234, 242, 211);
-}
-
-table.summary td {
-	padding-left: 0.5em;
-	padding-right: 0.5em;
-        border: 1px solid rgb(152, 191, 33);
 }
 
 span.negative {

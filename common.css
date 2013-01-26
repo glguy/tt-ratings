@@ -1,0 +1,33 @@
+body {
+  background-color: rgb(220,230,255);
+}
+
+h1 {
+  border-bottom: 1px solid black;
+}
+
+table.data {
+  border-collapse: collapse;
+}
+
+table.data th {
+  background-color: rgb(167, 201, 66);
+  color: white;
+  padding-left: 0.3em;
+  padding-right: 0.3em;
+  vertical-align: bottom;
+}
+
+table.data td {
+  border: 1px solid rgb(152, 191, 33);
+  background-color: white;
+}
+
+table.data td {
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+}
+
+table.data tr.alt td {
+  background-color: rgb(234, 242, 211);
+}

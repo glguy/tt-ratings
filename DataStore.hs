@@ -14,7 +14,7 @@ import LawSerialization
 
 import Control.Applicative
 import Control.Lens
-import Control.Monad (join, liftM, ap)
+import Control.Monad (join, liftM, ap, unless)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad.Trans.Maybe
@@ -29,6 +29,7 @@ import Database.SQLite.Simple.FromField
 import Database.SQLite.Simple.ToField
 import qualified Data.Map as Map
 
+dbName :: FilePath
 dbName = "pingpong.db"
 
 withDatabase :: DatabaseT IO a -> IO a
@@ -44,10 +45,10 @@ getPlayerMap :: DatabaseM m => m (Map PlayerId Player)
 getPlayerMap =
      Map.fromList <$> query_' "SELECT playerId, playerName FROM player"
 
-getEvents :: DatabaseM m => m [(EventId, Event EventId)]
+getEvents :: DatabaseM m => m (Map EventId (Event EventId))
 getEvents =
   do xs <- query_' "SELECT eventId, eventName, eventDay, eventActive, previousEventId FROM event"
-     return [(i,event) | Only i :. event <- xs]
+     return $ Map.fromList [(i,event) | Only i :. event <- xs]
 
 addEvent :: DatabaseM m => Event EventId -> m EventId
 addEvent Event{..} =
@@ -69,9 +70,11 @@ getEventById eventid =
                        (Only eventid)
 
 addMatchToEvent :: DatabaseM m => Match PlayerId -> EventId -> m MatchId
-addMatchToEvent Match{..} event =
-  do execute' "INSERT INTO match (eventId, winnerId, loserId, matchTime) VALUES (?,?,?,?)"
-       (event, _matchWinner, _matchLoser, _matchTime)
+addMatchToEvent Match{..} eventId =
+  do [Only active] <- query' "SELECT eventActive FROM event WHERE eventId = ?" (Only eventId)
+     unless active $ fail "Attempting to add match to an inactive event"
+     execute' "INSERT INTO match (eventId, winnerId, loserId, matchTime) VALUES (?,?,?,?)"
+       (eventId, _matchWinner, _matchLoser, _matchTime)
      MatchId <$> lastInsertRowId'
 
 getMatchById :: DatabaseM m => MatchId -> m (Maybe (Match Player))
