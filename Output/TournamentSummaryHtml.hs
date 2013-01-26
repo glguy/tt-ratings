@@ -1,9 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
-module TournamentSummaryHtml where
+module Output.TournamentSummaryHtml where
 
 import Law
 import Player
-import Formatting
+import Output.Formatting
 import Data.List (sortBy)
 import Data.Foldable (foldMap)
 import Data.Ord (comparing)

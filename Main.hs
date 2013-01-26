@@ -6,11 +6,11 @@ import Control.Monad.IO.Class
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
-import GraphData
 import LawSerialization
 import System.Environment
 import Tournament
-import TournamentSummaryHtml
+import Output.GraphLawCurves
+import Output.TournamentSummaryHtml
 import qualified Data.Map as Map
 
 import Law

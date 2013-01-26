@@ -9,7 +9,7 @@ import Match
 import Player
 
 import LawSerialization
-import MaybeT
+import Control.Monad.Trans.Maybe
 
 import Control.Applicative
 import Control.Monad.Trans (MonadTrans(lift))
@@ -213,6 +213,9 @@ execute' q args = do
 
 lastInsertRowId' :: DatabaseM m => m Int64
 lastInsertRowId' = liftIO . lastInsertRowId =<< connection
+
+fromMaybeT :: Functor m => x -> MaybeT m x -> m x
+fromMaybeT x m = fromMaybe x <$> runMaybeT m
 
 --
 -- ID Types

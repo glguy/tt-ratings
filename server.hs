@@ -17,7 +17,7 @@ import Text.Hamlet (shamlet, Html)
 import Text.Read(readMaybe)
 import qualified Data.Text as Text
 
-import Formatting
+import Output.Formatting
 import Player
 import Match
 import DataStore
