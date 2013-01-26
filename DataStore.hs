@@ -69,6 +69,14 @@ getEventById eventid =
                            \ FROM event WHERE eventId = ?"
                        (Only eventid)
 
+deleteEventById :: DatabaseM m => EventId -> m ()
+deleteEventById eventId = execute' "DELETE FROM event WHERE eventId = ?" (Only eventId)
+
+setEventActive :: DatabaseM m => EventId -> Bool -> m ()
+setEventActive eventId active =
+  execute' "UPDATE event SET eventActive = ? WHERE eventId = ?"
+           (active, eventId)
+
 addMatchToEvent :: DatabaseM m => Match PlayerId -> EventId -> m MatchId
 addMatchToEvent Match{..} eventId =
   do [Only active] <- query' "SELECT eventActive FROM event WHERE eventId = ?" (Only eventId)

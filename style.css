@@ -57,3 +57,7 @@ a.delete {
 	color: gray;
 	font-style: italic;
 }
+
+form.deleteform {
+  display: inline;
+}

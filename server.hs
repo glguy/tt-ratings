@@ -10,6 +10,7 @@ import Data.Time
 import Data.Time.Calendar (Day)
 import Network.HTTP.Server
 import Network.HTTP.Server.Logger
+import Network.HTTP.Server.HtmlForm
 import Network.URL
 import System.Locale
 import Text.Blaze.Html.Renderer.String (renderHtml)
@@ -32,19 +33,23 @@ main = serverWith
     , srvHost = "0.0.0.0"
     , srvPort = 8000
     }
-    $ \_ URL { .. } _ ->
+    $ \_ URL { .. } request ->
   case url_path of
     "match" | Just w <- lookup "winner" url_params
             , Just l <- lookup "loser"  url_params ->
              do saveMatch w l
                 putStrLn $ "Saving " ++ show (w,l)
-                return good
+                return $ redir "/"
 
-    "delete" | Just mid <- fmap MatchId . readMaybe =<< lookup "matchid" url_params ->
-             do match <- withDatabase $ do match <- getMatchById mid
-                                           deleteMatchById mid
-                putStrLn $ "Deleted " ++ show match
-                return good
+    "delete"
+      | POST <- rqMethod request
+      , Just form <- fromRequest request
+      , Just matchId <- MatchId <$> lookupRead form "matchId" ->
+          withDatabase $ do
+             match <- getMatchById matchId
+             deleteMatchById matchId
+             liftIO $ putStrLn $ "Deleted " ++ show match
+             return $ redir "/"
 
     "exportplayers" ->
       do ms <- withDatabase getPlayerMap
@@ -55,9 +60,23 @@ main = serverWith
       do ms <- withDatabase exportMatches
          return $ ok $ show ms
 
-    "events" ->
-             do events <- withDatabase getEvents
-                return $ ok $ eventsPage events
+    "events"
+       | GET <- rqMethod request ->
+              do events <- withDatabase getEvents
+                 return $ ok $ eventsPage events
+
+       | POST <- rqMethod request
+       , Just form    <- fromRequest request
+       , Just action  <- lookupString form "action"
+       , Just eventId <- EventId <$> lookupRead   form "eventId" ->
+           withDatabase $ do
+             case action of
+               "Open"   -> setEventActive eventId True
+               "Close"  -> setEventActive eventId False
+               "Delete" -> deleteEventById eventId
+               _        -> fail "Unknown operation"
+
+             return $ redir "/events"
 
     _ -> ok . renderHtml <$> mainPage
   `catch` \(SomeException e) -> return (bad (show e))
@@ -70,12 +89,11 @@ main = serverWith
 
   hdrs = [ mkHeader HdrConnection "close"]
 
-  good = Response { rspCode = (3,0,2)
+  redir str = Response { rspCode = (3,0,2)
                   , rspReason = "Found"
-                  , rspHeaders = hdrs ++ [ mkHeader HdrLocation "/" ]
+                  , rspHeaders = hdrs ++ [ mkHeader HdrLocation str ]
                   , rspBody = "OK"
                   }
-
 
   bad e = Response { rspCode = (5,0,0)
                    , rspReason = "It didn't work"
@@ -94,7 +112,10 @@ mainPage = withDatabase $
 saveMatch :: String -> String -> IO MatchId
 saveMatch winner loser = withDatabase $ do
   _matchTime        <- liftIO getCurrentTime
-  Just eventId      <- getCurrentEventId
+  eventId <- do mb <- getCurrentEventId
+                case mb of
+                  Just eventId -> return eventId
+                  Nothing      -> fail "No event is currently open"
   Just _matchWinner <- getPlayerIdByName $ Text.pack winner
   Just _matchLoser  <- getPlayerIdByName $ Text.pack loser
   addMatchToEvent Match{..} eventId
@@ -108,16 +129,14 @@ formatMatch tz d i (MatchId mid) match = [shamlet|
     <td>#{w}
     <td>#{l}
     <td>
-      <a .delete href=#{exportURL delUrl}>delete
+      <form .deleteform action="/delete" method=post enctype="multipart/form-data">
+        <input type=hidden name=matchId value=#{show mid}>
+        <input .deletebutton type=submit value=delete>
 |]
   where
   t = view (matchTime   . to (formatTime defaultTimeLocale "%X" . utcToLocalTime tz)) match
   w = view (matchWinner . playerName) match
   l = view (matchLoser  . playerName) match
-  delUrl = URL { url_type   = HostRelative
-               , url_path   = "delete"
-               , url_params = [("matchid", show mid)]
-               }
 
 formatMatches :: TimeZone -> Day -> [(MatchId, Match Player)] -> Html
 formatMatches tz d xs = [shamlet|
