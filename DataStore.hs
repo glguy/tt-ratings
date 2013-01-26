@@ -154,7 +154,7 @@ getLawsForEvent eventId = do
        case laws of
          [] -> do e <- parentEvent eventId
                   search playerId e
-         (day,x):_ -> case deserializeRow1 x of
+         (day,x):_ -> case deserializeLaw x of
                        Nothing -> error "bad law data"
                        Just law -> return (day,law)
 
@@ -164,7 +164,7 @@ clearLawsForEvent eventId = execute' "DELETE FROM law WHERE eventId = ?" (Only e
 addLaw :: DatabaseM m => PlayerId -> EventId -> Law -> m ()
 addLaw playerId eventId law =
   execute' "INSERT INTO law (playerId, eventId, mean, stddev, lawData) VALUES (?,?,?,?,?)"
-    (playerId, eventId, lawMean law, lawStddev law, serializeRow1 law)
+    (playerId, eventId, lawMean law, lawStddev law, serializeLaw law)
 
 
 newtype DatabaseT m a = DatabaseT (Connection -> m a)
