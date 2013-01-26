@@ -7,13 +7,16 @@ import Data.List (sortBy)
 import Data.Ord (comparing)
 import Text.Hamlet (shamlet, Html)
 import Text.Blaze.Html.Renderer.String (renderHtml)
+import Data.Time.Calendar (Day)
+import Control.Applicative
 
 import Text.Read(readMaybe)
-import Control.Exception as X
+import Control.Exception
+import Control.Lens
 
 import DB
 import Formatting
-
+import ExportMatches
 
 main :: IO ()
 main = serverWith
@@ -25,24 +28,31 @@ main = serverWith
     $ \_ URL { .. } _ ->
   case url_path of
     "match" | Just w <- lookup "winner" url_params
-            , Just l <- lookup "loser" url_params ->
-             do print (w,l)
-                saveMatch w l
+            , Just l <- lookup "loser"  url_params ->
+             do saveMatch w l
+                putStrLn $ "Saving " ++ show (w,l)
                 return good
 
     "delete" | Just dtxt <- lookup "day" url_params
              , Just d <- readMaybe dtxt
              , Just f <- lookup "match" url_params ->
-      delMatch d f >> return good
+             do delMatch d f
+                putStrLn $ "Deleted " ++ show (d,f)
+                return good
 
-    _ -> do html <- mainPage
-            return Response { rspCode   = (2,0,0)
-                            , rspReason = "OK"
-                            , rspHeaders = hdrs
-                            , rspBody   = renderHtml html }
-  `X.catch` \e@(SomeException _) -> return (bad (show e))
+    "exportmatches" ->
+      do ms <- exportMatches
+         return $ ok $ show $ over (mapped . _1) show ms
+
+    _ -> ok . renderHtml <$> mainPage
+  `catch` \(SomeException e) -> return (bad (show e))
 
   where
+  ok body = Response { rspCode   = (2,0,0)
+                     , rspReason = "OK"
+                     , rspHeaders = hdrs
+                     , rspBody   = body }
+
   hdrs = [ mkHeader HdrConnection "close"]
 
   good = Response { rspCode = (3,0,2)
@@ -66,11 +76,10 @@ mainPage =
      msR <- mapM (\(x,m) -> (,) x `fmap` resolveMatch ps m) ms
      thePage ps $ formatMatches (localDay t) msR
 
-
 --------------------------------------------------------------------------------
 
-formatMatch :: Day -> (Int,(FilePath, Match String)) -> Html
-formatMatch d (i,(f, Match { .. })) = [shamlet|
+formatMatch :: Day -> Int -> FilePath -> Match String -> Html
+formatMatch d i f Match { .. } = [shamlet|
   <tr :odd i:.alt>
     <td>#{time}
     <td>#{winner}
@@ -93,11 +102,11 @@ formatMatches d xs = [shamlet|
       <th>Winner
       <th>Loser
       <th>Actions
-    $forall row <- ordered
-      ^{formatMatch d row}
+    $forall (i,(fn,m)) <- itoList $ sortBy (flip byTime) xs
+      ^{formatMatch d i fn m}
 |]
   where
-  ordered = zip [0..] $ sortBy (flip (comparing (time . snd))) xs
+  byTime = comparing (time . snd)
 
 thePage :: [Player] -> Html -> IO Html
 thePage ps table =

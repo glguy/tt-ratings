@@ -135,8 +135,7 @@ $with title <- formatTournamentTitle day
         <th>σ
         <th>μ
         <th>σ
-      $forall (i,row) <- itoList $ Map.toList results
-        $with (name,summ) <- row
+      $forall (i,(name,summ)) <- itoList $ Map.toList results
          $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
           <tr :odd i:.alt>
             <td .opponent>#{name}
@@ -167,8 +166,7 @@ $with title <- formatTournamentTitle day
               <th>μ
               <th>σ
               <th>Name
-            $forall (i,row) <- itoList $ Map.toList $ view summaryMatches summ
-              $with (opponentName,summary) <- row
+            $forall (i,(opponentName,summary)) <- itoList $ Map.toList $ view summaryMatches summ
                <tr :odd i:.alt>
                 <td .delta>^{formatDelta $ summaryMeanChange   summary}
                 <td .delta>^{formatDelta $ summaryStddevChange summary}
