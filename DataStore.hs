@@ -29,7 +29,9 @@ import Data.Map (Map)
 dbName = "pingpong.db"
 
 withDatabase :: DatabaseT IO a -> IO a
-withDatabase (DatabaseT f) = withConnection dbName f
+withDatabase (DatabaseT f) = withConnection dbName $ \con ->
+  do execute_ con "PRAGMA foreign_keys = ON"
+     f con
 
 getPlayerList :: DatabaseM m => m [Player]
 getPlayerList =

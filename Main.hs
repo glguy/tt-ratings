@@ -69,7 +69,7 @@ getConfig = do
     [currentEventStr, resultsFn, ratingsFn] ->
       do let currentEventId = EventId $ read currentEventStr
          return Config {..}
-    _ -> fail "usage: tt-ratings DAY OLD_LAWS NEW_LAWS RESULTS RATINGS"
+    _ -> fail "usage: tt-ratings EVENTID RESULTS RATINGS"
 
 nameMap :: (Monad m, Ord k, Ord k') => Map k k' -> Map k v -> m (Map k' v)
 nameMap names

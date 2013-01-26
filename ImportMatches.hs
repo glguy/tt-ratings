@@ -4,6 +4,7 @@ module Main where
 import DB
 import Control.Lens
 import Control.Applicative
+import Control.Monad.IO.Class
 import Data.List
 import Control.Monad
 import Data.Traversable
@@ -23,14 +24,14 @@ import System.Locale
 import qualified Data.Text
 
 main :: IO ()
-main =
-  do ps   <- loadPlayerMap
+main = withDatabase $
+  do ps   <- liftIO loadPlayerMap
      playerIdMap <- for ps $ \name ->
        addPlayer Player.Player {Player._playerName = Data.Text.pack name}
 
      let getPlayerId i = fromJust $ Map.lookup i playerIdMap
 
-     dirs <- fmap (\\ [".",".."]) (getDirectoryContents matchDir)
+     dirs <- liftIO $ fmap (\\ [".",".."]) (getDirectoryContents matchDir)
      days <- sort <$> traverse parseDay dirs
 
      let aux previousEventId day = do
@@ -41,7 +42,7 @@ main =
                          }
            eventId <- addEvent e
 
-           ms <- getMatches day
+           ms <- liftIO $ getMatches day
            for ms $ \(_,m) -> do
              let match = Match.Match { Match._matchWinner = getPlayerId $ winner m
                                , Match._matchLoser  = getPlayerId $ loser m
