@@ -26,6 +26,7 @@ import Codec.Binary.UTF8.String (encodeString)
 
 import Output.Common
 import Output.Player
+import Output.Players
 import Output.Formatting
 import Output.ExportMatches
 import Output.Events
@@ -103,6 +104,17 @@ main = serverWith
          withDatabase $ do
            html <- playerPage playerId
            return $ ok $ renderHtml html
+
+    ["players"] ->
+        withDatabase $ do
+           Just eventId <- getLatestEventId
+           players <- getPlayers
+           today <- liftIO $ localDay . zonedTimeToLocalTime <$> getZonedTime
+           dat <- getLawsForEvent eventId
+           let Just dat1 = ifor dat $ \i (a,b) ->
+                             do player <- Map.lookup i players
+                                return (player,a,b)
+           return $ ok $ renderHtml $ playersHtml today dat1
 
     ["static","common.css" ] -> ok <$> readFile "static/common.css"
     ["static","style.css"  ] -> ok <$> readFile "static/style.css"
@@ -195,6 +207,7 @@ thePage ps table =
   <head>
     ^{metaTags}
     <title>Ping Pong Results
+    <link rel=stylesheet type=text/css href=static/common.css>
     <link rel=stylesheet type=text/css href=static/style.css>
   <body>
     <div .entry>
@@ -207,5 +220,6 @@ thePage ps table =
           $forall p <- ps
             <option value=#{view playerName p}>
         <input type=submit #submit value=Record>
+    ^{navigationLinks}
     ^{table}
 |]

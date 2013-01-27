@@ -59,6 +59,13 @@ getCurrentEventId =
        []       -> Nothing
        Only x:_ -> Just x
 
+getLatestEventId :: DatabaseM m => m (Maybe EventId)
+getLatestEventId =
+  do xs <- query_' "SELECT eventId FROM event ORDER BY eventDay DESC, eventDay DESC LIMIT 1"
+     return $! case xs of
+       []       -> Nothing
+       Only x:_ -> Just x
+
 getEventById :: DatabaseM m => EventId -> m (Maybe (Event EventId))
 getEventById eventid =
   listToMaybe <$> query' "SELECT eventName, eventDay, eventActive, previousEventId\

@@ -4,8 +4,6 @@ module Output.TournamentSummaryHtml where
 import Law
 import Player
 import Output.Formatting
-import Data.List (sortBy)
-import Data.Ord (comparing)
 import Data.Time.Calendar
 import Data.List.Split (chunksOf)
 import Tournament
@@ -13,61 +11,13 @@ import Text.Hamlet (Html, shamlet)
 import Control.Lens
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Text.Blaze.Html.Renderer.String (renderHtml)
-import Text.Blaze.Html (preEscapedToHtml)
 import Output.Common
 
 tournamentColumns :: Int
 tournamentColumns = 2
 
-ratingsHtml :: Day -> Map Player (Day,Law) -> String
-ratingsHtml day laws = renderHtml [shamlet|
-$doctype 5
-<html>
-  <head>
-    ^{metaTags}
-    <title>#{title}
-    <link rel=stylesheet href=common.css>
-    <link rel=stylesheet href=ratings.css>
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
-    <script language=javascript src=static/jquery.flot.js>
-    <script language=javascript>#{preEscapedToHtml $ graphScript $ map rowLaw rows}
-  <body>
-    <h1>#{title}
-    <table #players-table .data>
-      <thead>
-       <tr>
-         <th>Player
-         <th>μ
-         <th>σ
-         <th>Metric
-         <th>Last played
-         <th>Graph
-      <tbody>
-        $forall (i,name,lastday,law) <- rows
-          <tr :odd i:.alt>
-            <td .str>#{view playerName name}
-            <td .num>#{showRound $ lawMean law}
-            <td .num>#{showRound $ lawStddev law}
-            <td .num>#{showRound $ lawScore law}
-            <td .str>
-              $if day == lastday
-                <i>today
-              $else
-                #{formatShortDay lastday}
-            <td>
-              <div .bargraph #graph#{i}>
-  |]
-  where
-  title       = "Player List - " ++ formatLongDay day
-  byScore     = flip (comparing (lawScore . snd . snd))
-  rows        = imap mkRow $ sortBy byScore $ Map.toList laws
-  mkRow i (name,(d,law)) = (i,name,d,law)
-  rowLaw (_,_,_,law) = law
-
-
-tournamentHtml :: Day -> Map Player (PlayerSummary Player) -> String
-tournamentHtml day results = renderHtml [shamlet|
+tournamentHtml :: Day -> Map Player (PlayerSummary Player) -> Html
+tournamentHtml day results = [shamlet|
 $doctype 5
 $with title <- formatTournamentTitle day
  <html>

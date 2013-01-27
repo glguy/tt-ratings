@@ -9,6 +9,7 @@ import Tournament
 import Output.GraphLawCurves
 import Output.TournamentSummaryHtml
 import qualified Data.Map as Map
+import Text.Blaze.Html.Renderer.String (renderHtml)
 
 import Event
 import DataStore
@@ -51,8 +52,7 @@ main = withDatabase $ do
   clearLawsForEvent $ currentEventId config
   ifor_ newLawsFromEvent $ \playerId (_day,law) -> addLaw playerId (currentEventId config) law
 
-  liftIO $ writeFile (ratingsFn config) $ ratingsHtml today namedTodaysLaws
-  liftIO $ writeFile (resultsFn config) $ tournamentHtml today namedResults
+  liftIO $ writeFile (resultsFn config) $ renderHtml $ tournamentHtml today namedResults
   liftIO $ writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
 
 getConfig :: IO Config

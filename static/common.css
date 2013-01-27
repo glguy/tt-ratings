@@ -12,6 +12,7 @@ table.data {
 
 table.data th {
   background-color: rgb(167, 201, 66);
+  border: 1px solid rgb(234, 242, 211);
   color: white;
   padding-left: 0.3em;
   padding-right: 0.3em;
@@ -30,4 +31,16 @@ table.data td {
 
 table.data tr.alt td {
   background-color: rgb(234, 242, 211);
+}
+
+div#navigation {
+  text-align: center;
+}
+
+div#navigation ul {
+  list-style-type: none;
+}
+div#navigation li {
+  display: inline;
+  padding-right: 3em;
 }
