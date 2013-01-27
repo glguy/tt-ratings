@@ -10,8 +10,7 @@ import Data.List.Split (splitOn)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Time
-import Data.Time
-import Data.Time.Calendar (Day)
+import Data.Foldable (for_)
 import Data.Traversable (for)
 import Network.HTTP.Server
 import Network.HTTP.Server.HtmlForm
@@ -31,7 +30,7 @@ import Output.Common
 import Output.Events
 import Output.ExportMatches
 import Output.Formatting
-import Output.GraphLawCurves
+import Output.GraphLawCurves (generateFlotData)
 import Output.Player
 import Output.Players
 import Player
@@ -53,7 +52,7 @@ main = serverWith
          withDatabase $ do
            Just winnerId <- getPlayerIdByName $ Text.pack winner
            Just loserId  <- getPlayerIdByName $ Text.pack loser
-           saveMatch winnerId loserId
+           _matchId <- saveMatch winnerId loserId
            liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
            return $ redir "/"
 
@@ -62,16 +61,15 @@ main = serverWith
       , Just form <- fromRequest request
       , Just action  <- lookupString form "action"
       , Just matchId <- MatchId <$> lookupRead form "matchId" ->
-          do withDatabase $ case action of
-               "delete" -> do
-                 Just match <- getMatchById matchId
-                 deleteMatchById matchId
-                 liftIO $ putStrLn $ "Deleted " ++ show match
-               "duplicate" -> do
-                 Just match <- getMatchById' matchId
-                 saveMatch (view matchWinner match) (view matchLoser match)
-                 liftIO $ putStrLn $ "Duplicated " ++ show match
-             return $ redir "/"
+             withDatabase $ do
+               case action of
+                 "delete"       -> deleteMatchById matchId
+                 "duplicate"  ->
+                    do mbMatch <- getMatchById' matchId
+                       for_ mbMatch $ \match ->
+                         saveMatch (view matchWinner match) (view matchLoser match)
+                 _ -> return ()
+               return $ redir "/"
 
     ["exportplayers"] ->
       do ms <- withDatabase getPlayers
@@ -123,7 +121,6 @@ main = serverWith
        withDatabase $ do
            Just eventId <- getLatestEventId
            players <- getPlayers
-           today <- liftIO $ localDay . zonedTimeToLocalTime <$> getZonedTime
            dat <- getLawsForEvent eventId
            let Just dat1 = for (Map.toList dat) $ \(i,(_,law)) ->
                              do player <- Map.lookup i players
@@ -183,8 +180,8 @@ saveMatch _matchWinner _matchLoser = do
 
 --------------------------------------------------------------------------------
 
-formatMatch :: TimeZone -> Day -> Int -> MatchId -> Match Player -> Html
-formatMatch tz d i (MatchId mid) match = [shamlet|
+formatMatch :: TimeZone -> Int -> MatchId -> Match Player -> Html
+formatMatch tz i (MatchId mid) match = [shamlet|
   <tr :odd i:.alt>
     <td>#{t}
     <td>#{w}
@@ -210,7 +207,7 @@ formatMatches tz d xs = [shamlet|
       <th>Loser
       <th>Actions
     $forall (i,(fn,m)) <- itoList $ sortBy (flip byTime) $ Map.toList xs
-      ^{formatMatch tz d i fn m}
+      ^{formatMatch tz i fn m}
 |]
   where
   byTime = comparing (view matchTime . snd)
