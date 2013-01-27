@@ -21,4 +21,4 @@ executable tt-ratings
 
 executable server
   main-is:             server.hs
-  build-depends:        base, time, directory, filepath, blaze-html, hamlet, url, http-server, containers, lens, array, split, statistics, text, sqlite-simple, transformers, mtl, old-locale
+  build-depends:        base, time, directory, filepath, blaze-html, hamlet, url, http-server, containers, lens, array, split, statistics, text, sqlite-simple, transformers, mtl, old-locale, utf8-string

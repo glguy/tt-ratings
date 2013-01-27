@@ -6,6 +6,7 @@ import Control.Exception
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.List (sortBy)
+import Data.List.Split (splitOn)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Time
@@ -21,6 +22,7 @@ import Text.Hamlet (shamlet, Html)
 import Text.Read(readMaybe)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Codec.Binary.UTF8.String (encodeString)
 
 import Output.Common
 import Output.Player
@@ -39,8 +41,8 @@ main = serverWith
     , srvPort = 8000
     }
     $ \_ URL { .. } request ->
-  case url_path of
-    "match"
+  case splitOn "/" url_path of
+    ["match"]
       | POST <- rqMethod request
       , Just form <- fromRequest request
       , Just winner <- lookupString form "winner"
@@ -52,7 +54,7 @@ main = serverWith
            liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
            return $ redir "/"
 
-    "matchop"
+    ["matchop"]
       | POST <- rqMethod request
       , Just form <- fromRequest request
       , Just action  <- lookupString form "action"
@@ -68,16 +70,16 @@ main = serverWith
                  liftIO $ putStrLn $ "Duplicated " ++ show match
              return $ redir "/"
 
-    "exportplayers" ->
+    ["exportplayers"] ->
       do ms <- withDatabase getPlayers
          return $ ok $ show
            [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
 
-    "exportmatches" ->
+    ["exportmatches"] ->
       do ms <- withDatabase exportMatches
          return $ ok $ show ms
 
-    "events"
+    ["events"]
        | GET <- rqMethod request ->
               do events <- withDatabase getEvents
                  return $ ok $ eventsPage events
@@ -95,12 +97,18 @@ main = serverWith
 
              return $ redir "/events"
 
-    "player"
+    ["player"]
        | GET <- rqMethod request
        , Just playerId <- fmap PlayerId . readMaybe =<< lookup "playerId" url_params ->
          withDatabase $ do
            html <- playerPage playerId
            return $ ok $ renderHtml html
+
+    ["static","common.css" ] -> ok <$> readFile "static/common.css"
+    ["static","style.css"  ] -> ok <$> readFile "static/style.css"
+    ["static","results.css"] -> ok <$> readFile "static/results.css"
+    ["static","ratings.css"] -> ok <$> readFile "static/ratings.css"
+    ["static","jquery.flot.js"] -> ok <$> readFile "static/jquery.flot.js"
 
     _ -> ok . renderHtml <$> mainPage
   `catch` \(SomeException e) -> return (bad (show e))
@@ -109,7 +117,7 @@ main = serverWith
   ok body = Response { rspCode   = (2,0,0)
                      , rspReason = "OK"
                      , rspHeaders = hdrs
-                     , rspBody   = body }
+                     , rspBody   = encodeString body }
 
   hdrs = [ mkHeader HdrConnection "close"]
 
@@ -182,13 +190,12 @@ formatMatches tz d xs = [shamlet|
 
 thePage :: [Player] -> Html -> IO Html
 thePage ps table =
-  do css <- readFile "style.css"
      return [shamlet|
 <html lang=en>
   <head>
     ^{metaTags}
     <title>Ping Pong Results
-    <style>#{css}
+    <link rel=stylesheet type=text/css href=static/style.css>
   <body>
     <div .entry>
       <form action="/match" method=POST enctype="multipart/form-data">

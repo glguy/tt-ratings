@@ -15,16 +15,10 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import Text.Blaze.Html (preEscapedToHtml)
+import Output.Common
 
 tournamentColumns :: Int
 tournamentColumns = 2
-
-metaTags :: Html
-metaTags = [shamlet|
-  <meta charset="UTF-8" />
-  <meta name="google" content="notranslate">
-  <meta http-equiv="Content-Language" content="en" />
-|]
 
 ratingsHtml :: Day -> Map Player (Day,Law) -> String
 ratingsHtml day laws = renderHtml [shamlet|
@@ -36,10 +30,8 @@ $doctype 5
     <link rel=stylesheet href=common.css>
     <link rel=stylesheet href=ratings.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
-    <script language=javascript src=flot/jquery.flot.js>
-    <script language=javascript src=jquery.tablesorter.min.js>
+    <script language=javascript src=static/jquery.flot.js>
     <script language=javascript>#{preEscapedToHtml $ graphScript $ map rowLaw rows}
-    <script language=javascript>$(document).ready(function(){ $("#players-table").tablesorter();});
   <body>
     <h1>#{title}
     <table #players-table .data>
@@ -73,38 +65,6 @@ $doctype 5
   mkRow i (name,(d,law)) = (i,name,d,law)
   rowLaw (_,_,_,law) = law
 
-graphScript :: [Law] -> String
-graphScript laws
-  = unlines
-  $ "$(document).ready(function drawGraphs() {"
-  : options
-  ++ imap drawOne laws
- ++ ["})"]
-  where
-  drawOne i law =
-    "$.plot($(\"#graph"++show i++"\"), [" ++ show dat ++ "], options);"
-    where
-    dat = map (\x -> [x,0]) [mkLo law, mkLoMid law, lawMean law, mkHiMid law, mkHi law]
-  mkLo law = lawMean law - 2 * lawStddev law
-  mkLoMid law = lawMean law - lawStddev law
-  mkHiMid law = lawMean law + lawStddev law
-  mkHi law = lawMean law + 2 * lawStddev law
-  minVal = minimum $ map mkLo laws
-  maxVal = maximum $ map mkHi laws
-  options =
-      [ "function vertLine(ctx, x, y, radius, shadow) {"
-      , "     ctx.moveTo(x, y - radius);"
-      , "     ctx.lineTo(x, y + radius);"
-      , "}"
-      , "var options = {"
-      ," xaxis: { min: " ++ show minVal ++ ", max: " ++ show maxVal ++  " , show: false },"
-      ," yaxis: { show: false },"
-      ," margin: { top: 0, left: 0, right: 0, bottom: 0 },"
-      ," lines: { show: true },"
-      ," points: { show: true, symbol: vertLine },"
-      ," colors: [\"red\"]"
-      ,"};"
-      ]
 
 tournamentHtml :: Day -> Map Player (PlayerSummary Player) -> String
 tournamentHtml day results = renderHtml [shamlet|
