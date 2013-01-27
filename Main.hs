@@ -28,7 +28,7 @@ main = withDatabase $ do
                        Nothing -> fail "No such event"
                        Just x -> return x
   previousLaws <- getLawsForEvent $ currentEventId config
-  matches      <- getMatchesByEventId $ currentEventId config
+  matches      <- fmap Map.elems $ getMatchesByEventId $ currentEventId config
 
   let today = view eventDay event
 

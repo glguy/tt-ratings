@@ -1,23 +1,26 @@
 {-# LANGUAGE RecordWildCards, PatternGuards, QuasiQuotes #-}
+module Main (main) where
+
 import Control.Applicative
 import Control.Exception
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.List (sortBy)
+import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Time
 import Data.Time
 import Data.Time.Calendar (Day)
 import Network.HTTP.Server
-import Network.HTTP.Server.Logger
 import Network.HTTP.Server.HtmlForm
+import Network.HTTP.Server.Logger
 import Network.URL
 import System.Locale
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import Text.Hamlet (shamlet, Html)
 import Text.Read(readMaybe)
-import qualified Data.Text as Text
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 import Output.Formatting
 import Output.ExportMatches
@@ -35,20 +38,32 @@ main = serverWith
     }
     $ \_ URL { .. } request ->
   case url_path of
-    "match" | Just w <- lookup "winner" url_params
-            , Just l <- lookup "loser"  url_params ->
-             do saveMatch w l
-                putStrLn $ "Saving " ++ show (w,l)
-                return $ redir "/"
-
-    "delete"
+    "match"
       | POST <- rqMethod request
       , Just form <- fromRequest request
+      , Just winner <- lookupString form "winner"
+      , Just loser  <- lookupString form "loser" ->
+         withDatabase $ do
+           Just winnerId <- getPlayerIdByName $ Text.pack winner
+           Just loserId  <- getPlayerIdByName $ Text.pack loser
+           saveMatch winnerId loserId
+           liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
+           return $ redir "/"
+
+    "matchop"
+      | POST <- rqMethod request
+      , Just form <- fromRequest request
+      , Just action  <- lookupString form "action"
       , Just matchId <- MatchId <$> lookupRead form "matchId" ->
-          withDatabase $ do
-             match <- getMatchById matchId
-             deleteMatchById matchId
-             liftIO $ putStrLn $ "Deleted " ++ show match
+          do withDatabase $ case action of
+               "delete" -> do
+                 Just match <- getMatchById matchId
+                 deleteMatchById matchId
+                 liftIO $ putStrLn $ "Deleted " ++ show match
+               "duplicate" -> do
+                 Just match <- getMatchById' matchId
+                 saveMatch (view matchWinner match) (view matchLoser match)
+                 liftIO $ putStrLn $ "Duplicated " ++ show match
              return $ redir "/"
 
     "exportplayers" ->
@@ -105,19 +120,21 @@ mainPage :: IO Html
 mainPage = withDatabase $
   do t   <- liftIO $ zonedTimeToLocalTime <$> getZonedTime
      tz  <- liftIO $ getCurrentTimeZone
-     ms  <- getMatchesForDay (localDay t)
-     ps  <- getPlayerList
-     liftIO $ thePage ps $ formatMatches tz (localDay t) ms
+     mbeventId  <- getCurrentEventId
+     ps  <- getPlayerMap
+     ms <- case mbeventId of
+             Nothing -> return Map.empty
+             Just eventId -> getMatchesByEventId eventId
+     let Just namedMatches = (each . traverse) (flip Map.lookup ps) ms
+     liftIO $ thePage (Map.elems ps) $ formatMatches tz (localDay t) namedMatches
 
-saveMatch :: String -> String -> IO MatchId
-saveMatch winner loser = withDatabase $ do
-  _matchTime        <- liftIO getCurrentTime
+saveMatch :: DatabaseM m => PlayerId -> PlayerId -> m MatchId
+saveMatch _matchWinner _matchLoser = do
+  _matchTime <- liftIO getCurrentTime
   eventId <- do mb <- getCurrentEventId
                 case mb of
                   Just eventId -> return eventId
                   Nothing      -> fail "No event is currently open"
-  Just _matchWinner <- getPlayerIdByName $ Text.pack winner
-  Just _matchLoser  <- getPlayerIdByName $ Text.pack loser
   addMatchToEvent Match{..} eventId
 
 --------------------------------------------------------------------------------
@@ -129,16 +146,17 @@ formatMatch tz d i (MatchId mid) match = [shamlet|
     <td>#{w}
     <td>#{l}
     <td>
-      <form .deleteform action="/delete" method=post enctype="multipart/form-data">
+      <form .deleteform action="/matchop" method=post enctype="multipart/form-data">
         <input type=hidden name=matchId value=#{show mid}>
-        <input .deletebutton type=submit value=delete>
+        <input .deletebutton type=submit name=action value=duplicate>
+        <input .deletebutton type=submit name=action value=delete>
 |]
   where
   t = view (matchTime   . to (formatTime defaultTimeLocale "%X" . utcToLocalTime tz)) match
   w = view (matchWinner . playerName) match
   l = view (matchLoser  . playerName) match
 
-formatMatches :: TimeZone -> Day -> [(MatchId, Match Player)] -> Html
+formatMatches :: TimeZone -> Day -> Map MatchId (Match Player) -> Html
 formatMatches tz d xs = [shamlet|
 <h2>Matches for #{formatLongDay d}
   <table>
@@ -147,7 +165,7 @@ formatMatches tz d xs = [shamlet|
       <th>Winner
       <th>Loser
       <th>Actions
-    $forall (i,(fn,m)) <- itoList $ sortBy (flip byTime) xs
+    $forall (i,(fn,m)) <- itoList $ sortBy (flip byTime) $ Map.toList xs
       ^{formatMatch tz d i fn m}
 |]
   where
@@ -166,7 +184,7 @@ thePage ps table =
     <style>#{css}
   <body>
     <div .entry>
-      <form action="/match" method=GET>
+      <form action="/match" method=POST enctype="multipart/form-data">
         <label for=winner>Winner:
         <input autocomplete=off list=players name=winner #winner>
         <label for=loser>Loser:

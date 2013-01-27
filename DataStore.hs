@@ -70,7 +70,10 @@ getEventById eventid =
                        (Only eventid)
 
 deleteEventById :: DatabaseM m => EventId -> m ()
-deleteEventById eventId = execute' "DELETE FROM event WHERE eventId = ?" (Only eventId)
+deleteEventById eventId = do
+  execute' "DELETE FROM match WHERE eventId = ?" (Only eventId)
+  execute' "DELETE FROM law   WHERE eventId = ?" (Only eventId)
+  execute' "DELETE FROM event WHERE eventId = ?" (Only eventId)
 
 setEventActive :: DatabaseM m => EventId -> Bool -> m ()
 setEventActive eventId active =
@@ -87,15 +90,19 @@ addMatchToEvent Match{..} eventId =
 
 getMatchById :: DatabaseM m => MatchId -> m (Maybe (Match Player))
 getMatchById matchid =
-  do xs <- query' "SELECT w.playerName, l.playerName, matchTime\
+  listToMaybe <$> query' "SELECT w.playerName, l.playerName, matchTime\
               \ FROM match\
               \ JOIN player AS w ON w.playerId = winnerId\
               \ JOIN player AS l ON l.playerId = loserId\
               \ WHERE matchId = ?"
              (Only matchid)
-     return $! case xs of
-       []  -> Nothing
-       x:_ -> Just x
+
+getMatchById' :: DatabaseM m => MatchId -> m (Maybe (Match PlayerId))
+getMatchById' matchid =
+  listToMaybe <$> query' "SELECT winnerId, loserId, matchTime\
+              \ FROM match\
+              \ WHERE matchId = ?"
+             (Only matchid)
 
 deleteMatchById :: DatabaseM m => MatchId -> m ()
 deleteMatchById matchId =
@@ -124,12 +131,13 @@ getMatchesForDay day =
                (Only day)
      return [(x,y) | Only x :. y <- xs]
 
-getMatchesByEventId :: DatabaseM m => EventId -> m [Match PlayerId]
+getMatchesByEventId :: DatabaseM m => EventId -> m (Map MatchId (Match PlayerId))
 getMatchesByEventId eventId =
-  query' "SELECT winnerId, loserId, matchTime\
+  do xs <- query' "SELECT matchId, winnerId, loserId, matchTime\
               \ FROM match\
               \ WHERE eventId = ?"
            (Only eventId)
+     return $ Map.fromList [(k,v) | Only k :. v <- xs]
 
 getActivePlayerIds :: DatabaseM m => m [PlayerId]
 getActivePlayerIds =
