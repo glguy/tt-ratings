@@ -59,3 +59,6 @@ formatLongDay day
   where
   (yearNum,monthNum,dayNum) = toGregorian day
   (_,_,weekdayNum) = toWeekDate day
+
+showRound :: Double -> String
+showRound x = show (round x :: Integer)

@@ -5,7 +5,6 @@ import Data.Map ( Map )
 import Data.Time.Calendar
 import Data.Traversable
 import Data.Int (Int64)
-import Data.Map (Map)
 import Data.Text (Text)
 import qualified Data.Map as Map
 

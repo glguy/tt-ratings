@@ -22,7 +22,7 @@ main :: IO ()
 main = withDatabase $ do
   config <- liftIO getConfig
 
-  playerMap    <- getPlayerMap
+  playerMap    <- getPlayers
   event        <- do mb <- getEventById $ currentEventId config
                      case mb of
                        Nothing -> fail "No such event"

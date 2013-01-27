@@ -189,12 +189,6 @@ isZero z = z == 0
 formatTournamentTitle :: Day -> String
 formatTournamentTitle day = "Tournament Results - " ++ formatLongDay day
 
-showRound :: Double -> String
-showRound x = show (round x :: Integer)
-
-formatLaw :: Law -> String
-formatLaw law = showRound (lawMean law) ++ "±" ++ showRound (lawStddev law)
-
 formatDelta :: Double -> Html
 formatDelta d = case compare d 0 of
   LT -> [shamlet| <span .negative>#{showRound (abs d)} |]
@@ -205,13 +199,3 @@ formatDeltaOp :: Double -> String
 formatDeltaOp d
   | d >= 0 = " + " ++ showRound d
   | otherwise = " - " ++ showRound (- d)
-
--- | Render the change between an old law and a new law.
-formatLawChange ::
-  Law {- ^ Old law -} ->
-  Law {- ^ New law -} ->
-  String
-formatLawChange old new =
-  formatLaw old
-  ++ formatDeltaOp (lawMean new - lawMean old) ++ " = "
-  ++ formatLaw new

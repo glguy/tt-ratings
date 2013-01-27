@@ -22,6 +22,8 @@ import Text.Read(readMaybe)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 
+import Output.Common
+import Output.Player
 import Output.Formatting
 import Output.ExportMatches
 import Output.Events
@@ -67,7 +69,7 @@ main = serverWith
              return $ redir "/"
 
     "exportplayers" ->
-      do ms <- withDatabase getPlayerMap
+      do ms <- withDatabase getPlayers
          return $ ok $ show
            [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
 
@@ -92,6 +94,13 @@ main = serverWith
                _        -> fail "Unknown operation"
 
              return $ redir "/events"
+
+    "player"
+       | GET <- rqMethod request
+       , Just playerId <- fmap PlayerId . readMaybe =<< lookup "playerId" url_params ->
+         withDatabase $ do
+           html <- playerPage playerId
+           return $ ok $ renderHtml html
 
     _ -> ok . renderHtml <$> mainPage
   `catch` \(SomeException e) -> return (bad (show e))
@@ -121,7 +130,7 @@ mainPage = withDatabase $
   do t   <- liftIO $ zonedTimeToLocalTime <$> getZonedTime
      tz  <- liftIO $ getCurrentTimeZone
      mbeventId  <- getCurrentEventId
-     ps  <- getPlayerMap
+     ps  <- getPlayers
      ms <- case mbeventId of
              Nothing -> return Map.empty
              Just eventId -> getMatchesByEventId eventId
@@ -177,9 +186,7 @@ thePage ps table =
      return [shamlet|
 <html lang=en>
   <head>
-    <meta charset="UTF-8" />
-    <meta name="google" content="notranslate">
-    <meta http-equiv="Content-Language" content="en" />
+    ^{metaTags}
     <title>Ping Pong Results
     <style>#{css}
   <body>

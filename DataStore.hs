@@ -37,13 +37,9 @@ withDatabase (DatabaseT f) = withConnection dbName $ \con ->
   do execute_ con "PRAGMA foreign_keys = ON"
      f con
 
-getPlayerList :: DatabaseM m => m [Player]
-getPlayerList =
-     map fromOnly <$> query_' "SELECT playerName FROM player"
-
-getPlayerMap :: DatabaseM m => m (Map PlayerId Player)
-getPlayerMap =
-     Map.fromList <$> query_' "SELECT playerId, playerName FROM player"
+getPlayers :: DatabaseM m => m (Map PlayerId Player)
+getPlayers = do xs <- query_' "SELECT playerId, playerName FROM player"
+                return $ Map.fromList [(k,v) | Only k :. v <- xs]
 
 getEvents :: DatabaseM m => m (Map EventId (Event EventId))
 getEvents =
@@ -121,6 +117,9 @@ getPlayerIdByName name =
        [] -> Nothing
        Only x : _ -> x
 
+getPlayerById :: DatabaseM m => PlayerId -> m (Maybe Player)
+getPlayerById playerId = listToMaybe <$> query' "SELECT playerName FROM player WHERE playerId = ?" (Only playerId)
+
 getMatchesForDay :: DatabaseM m => Day -> m [(MatchId, Match Player)]
 getMatchesForDay day =
   do xs <- query' "SELECT matchId, w.playerName, l.playerName, matchTime\
@@ -167,15 +166,13 @@ getLawsForEvent topEventId = do
   search playerId eventId =
     do laws <- query' "SELECT eventDay,lawData\
                              \ FROM law\
-                             \ JOIN event using (eventId)\
+                             \ JOIN event USING (eventId)\
                              \ WHERE playerId = ? AND eventId = ?"
                              (playerId, eventId)
        case laws of
          [] -> do e <- parentEvent eventId
                   search playerId e
-         (day,x):_ -> case deserializeLaw x of
-                       Nothing -> error "bad law data"
-                       Just law -> return (day,law)
+         (Only day :. law):_ -> return (day,law)
 
 clearLawsForEvent :: DatabaseM m => EventId -> m ()
 clearLawsForEvent eventId = execute' "DELETE FROM law WHERE eventId = ?" (Only eventId)
@@ -185,6 +182,13 @@ addLaw playerId eventId law =
   execute' "INSERT INTO law (playerId, eventId, mean, stddev, lawData) VALUES (?,?,?,?,?)"
     (playerId, eventId, lawMean law, lawStddev law, serializeLaw law)
 
+getLawsForPlayer :: DatabaseM m => PlayerId -> m (Map EventId (Event EventId, Law))
+getLawsForPlayer playerId = do
+  xs <- query' "SELECT eventId, eventName, eventDay, eventActive, previousEventId, lawData\
+               \ FROM law\
+               \ NATURAL JOIN event \
+               \ WHERE playerId = ?" (Only playerId)
+  return $ Map.fromList [(k,(event,law)) | Only k :. event :. law <- xs]
 
 newtype DatabaseT m a = DatabaseT (Connection -> m a)
 
@@ -259,13 +263,21 @@ instance FromField EventId  where fromField = fmap EventId . fromField
 instance FromField PlayerId where fromField = fmap PlayerId . fromField
 instance FromField MatchId  where fromField = fmap MatchId . fromField
 
-instance FromField Player where
-  fromField f = do _playerName <- fromField f
-                   return Player {..}
+instance FromRow PlayerId   where fromRow = PlayerId <$> field
 
-instance FromField p => FromRow (Match p) where
-  fromRow = do _matchWinner <- field
-               _matchLoser  <- field
+instance FromRow Law        where
+  fromRow = do dat <- field
+               case deserializeLaw dat of
+                 Nothing -> fail "bad law data"
+                 Just law -> return law
+
+instance FromRow Player where
+  fromRow = do _playerName <- field
+               return Player {..}
+
+instance FromRow p => FromRow (Match p) where
+  fromRow = do _matchWinner <- fromRow
+               _matchLoser  <- fromRow
                _matchTime   <- field
                return Match {..}
 
