@@ -23,7 +23,8 @@ data Config = Config
   , resultsFn :: FilePath
   }
 
-runDb m = withConnection dbName $ \db ->
+runDb :: ReaderT Sqlite IO a -> IO a
+runDb m = withConnection "pingpong.db" $ \db ->
   do v <- newMVar db
      runReaderT m $ Sqlite v
 

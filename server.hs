@@ -1,30 +1,26 @@
-{-# LANGUAGE RecordWildCards, PatternGuards, QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards, QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleInstances #-}
-module Main (main) where
+module Main where
 
 import Control.Applicative
 import Control.Exception ()
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.List (sortBy)
-import Data.List.Split (splitOn)
 import Data.Map (Map)
-import Data.Monoid
 import Data.Ord (comparing)
 import Data.Time
 import Data.Foldable (for_)
 import Data.Traversable (for)
-import Network.URL
 import System.Locale
 import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
 import Text.Hamlet (shamlet, Html)
-import Text.Read(readMaybe)
+import Data.Text.Read
+import Data.Text (Text)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Enc
-import Codec.Binary.UTF8.Generic (toString)
 
 import DataStore
 import Match
@@ -39,21 +35,22 @@ import Player
 
 import Snap
 import Snap.Util.FileServe
-import Snap.Http.Server
-
 import Snap.Snaplet.SqliteSimple
+
 data App = App
   { _db :: Snaplet Sqlite
   }
 
-makeLenses ''App
+makeClassy ''App
+-- class HasApp t where
+--  app :: Lens' t App
+--  db  :: Lens' t (Snaplet Sqlite)
 
-instance HasSqlite (Handler b App) where
-   getSqliteState = with db get
+instance HasApp app => HasSqlite (Handler b app) where getSqliteState = with db get
 
 appInit :: SnapletInit App App
 appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
-  d <- nestSnaplet "db" db sqliteInit
+  d <- embedSnaplet "db" db sqliteInit
   addRoutes
      [ ("match", method POST matchPostHandler)
      , ("matchop", method POST matchopPostHandler)
@@ -73,18 +70,20 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
 main :: IO ()
 main = serveSnaplet defaultConfig appInit
 
+matchPostHandler :: Handler App App ()
 matchPostHandler = do
-  winner <- toString <$> getParam' "winner"
-  loser  <- toString <$> getParam' "loser"
-  Just winnerId <- getPlayerIdByName $ Text.pack winner
-  Just loserId  <- getPlayerIdByName $ Text.pack loser
+  winner <- getParam' "winner"
+  loser  <- getParam' "loser"
+  Just winnerId <- getPlayerIdByName winner
+  Just loserId  <- getPlayerIdByName loser
   _matchId <- saveMatch winnerId loserId
   liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
   redirect "/"
 
+matchopPostHandler :: Handler App App ()
 matchopPostHandler = do
-  action  <- toString <$> getParam' "action"
-  matchId <- fmap MatchId . liftIO . readIO . toString =<< getParam' "matchId"
+  action  <- getParam' "action"
+  matchId <- MatchId <$> getNumParam "matchId"
   case action of
       "delete"       -> deleteMatchById matchId
       "duplicate"  ->
@@ -94,22 +93,28 @@ matchopPostHandler = do
       _ -> return ()
   redirect "/"
 
+exportPlayersHandler :: Handler App App ()
 exportPlayersHandler = do
   ms <- getPlayers
   let xs = [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
+  modifyResponse $ setContentType "text/plain; charset=utf-8"
   writeText $ Text.pack $ show xs
 
+exportMatchesHandler :: Handler App App ()
 exportMatchesHandler = do
   ms <- exportMatches
+  modifyResponse $ setContentType "text/plain; charset=utf-8"
   writeText $ Text.pack $ show ms
 
+eventsGetHandler :: Handler App App ()
 eventsGetHandler = do
   events <- getEvents
-  writeBuilder $ renderHtmlBuilder $ eventsPage events
+  sendHtml $ eventsPage events
 
+eventsPostHandler :: Handler App App ()
 eventsPostHandler = do
-  action <- toString <$> getParam' "action"
-  eventId <- EventId . read . toString <$> getParam' "eventId"
+  action <- getParam' "action"
+  eventId <- EventId <$> getNumParam "eventId"
   case action of
       "Open"   -> setEventActive eventId True
       "Close"  -> setEventActive eventId False
@@ -117,43 +122,51 @@ eventsPostHandler = do
       _        -> fail "Unknown operation"
   redirect "/events"
 
+playerHandler :: Handler App App ()
 playerHandler = do
-  playerId <- fmap PlayerId . liftIO . readIO . toString =<< getParam' "playerId"
-  html <- playerPage playerId
-  writeBuilder $ renderHtmlBuilder html
+  playerId <- PlayerId <$> getNumParam "playerId"
+  html     <- playerPage playerId
+  sendHtml html
 
+playersHandler :: Handler App App ()
 playersHandler = do
   Just eventId <- getLatestEventId
-  players <- getPlayers
-  today <- liftIO $ localDay . zonedTimeToLocalTime <$> getZonedTime
-  dat <- getLawsForEvent eventId
-  let Just dat1 = ifor dat $ \i (a,b) ->
+  players  <- getPlayers
+  today    <- localDay <$> getLocalTime
+  eventMap <- getLawsForEvent eventId
+  let Just eventMap' = ifor eventMap $ \i (a,b) ->
                              do player <- Map.lookup i players
                                 return (player,a,b)
-  writeBuilder $ renderHtmlBuilder $ playersHtml today dat1
+  sendHtml $ playersHtml today eventMap'
 
+curvesHandler :: Handler App App ()
 curvesHandler = do
-           Just eventId <- getLatestEventId
-           players <- getPlayers
-           dat <- getLawsForEvent eventId
-           let Just dat1 = for (Map.toList dat) $ \(i,(_,law)) ->
-                             do player <- Map.lookup i players
-                                return (player,law)
-           writeText $ Text.pack $ generateFlotData $ Map.fromList dat1
+  Just eventId <- getLatestEventId
+  players      <- getPlayers
+  eventMap     <- getLawsForEvent eventId
+  let Just eventMap' =
+         for (Map.toList eventMap) $ \(i,(_,law)) ->
+           do player <- Map.lookup i players
+              return (player,law)
+
+  modifyResponse $ setContentType "application/javascript; charset=utf8"
+  writeText $ Text.pack $ generateFlotData $ Map.fromList eventMap'
 
 
-defaultHandler = writeBuilder . renderHtmlBuilder =<< mainPage
+defaultHandler :: Handler App App ()
+defaultHandler = sendHtml =<< mainPage
 
+mainPage :: Handler App App Html
 mainPage =
-  do t   <- liftIO $ zonedTimeToLocalTime <$> getZonedTime
-     tz  <- liftIO $ getCurrentTimeZone
-     mbeventId  <- getCurrentEventId
-     ps  <- getPlayers
-     ms <- case mbeventId of
-             Nothing -> return Map.empty
-             Just eventId -> getMatchesByEventId eventId
+  do t  <- getLocalTime
+     tz <- liftIO getCurrentTimeZone
+     mb <- getCurrentEventId
+     ps <- getPlayers
+     ms <- case mb of
+             Nothing            -> return Map.empty
+             Just eventId       -> getMatchesByEventId eventId
      let Just namedMatches = (each . traverse) (flip Map.lookup ps) ms
-     liftIO $ thePage (Map.elems ps) $ formatMatches tz (localDay t) namedMatches
+     return $ thePage (Map.elems ps) $ formatMatches tz (localDay t) namedMatches
 
 saveMatch :: (Functor m, HasSqlite m, MonadIO m) => PlayerId -> PlayerId -> m MatchId
 saveMatch _matchWinner _matchLoser = do
@@ -164,11 +177,29 @@ saveMatch _matchWinner _matchLoser = do
                   Nothing      -> fail "No event is currently open"
   addMatchToEvent Match{..} eventId
 
+sendHtml :: MonadSnap m => Html -> m ()
+sendHtml html = do
+  modifyResponse $ setContentType "text/html; charset=utf-8"
+  writeBuilder $ renderHtmlBuilder html
+
+getLocalTime :: MonadIO m => m LocalTime
+getLocalTime = zonedTimeToLocalTime `liftM` liftIO getZonedTime
+
+getParam' :: MonadSnap m => Text -> m Text
 getParam' name = do
-  mb <- getParam name
+  mb <- getParam $ Enc.encodeUtf8 name
   case mb of
     Nothing -> fail ("Missing parameter: " ++ show name)
-    Just x  -> return x
+    Just x  -> return $ Enc.decodeUtf8 x
+
+getNumParam :: (Integral a, MonadSnap m) => Text -> m a
+getNumParam name = do
+   p <- getParam' name
+   case decimal p of
+     Right (n,rest)
+       | Text.null rest -> return n
+       | otherwise      -> fail "bad number"
+     Left err -> fail err
 
 --------------------------------------------------------------------------------
 
@@ -204,9 +235,8 @@ formatMatches tz d xs = [shamlet|
   where
   byTime = comparing (view matchTime . snd)
 
-thePage :: [Player] -> Html -> IO Html
-thePage ps table =
-     return [shamlet|
+thePage :: [Player] -> Html -> Html
+thePage ps table = [shamlet|
 <html lang=en>
   <head>
     ^{metaTags}
