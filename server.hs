@@ -12,6 +12,7 @@ import Data.Ord (comparing)
 import Data.Time
 import Data.Time
 import Data.Time.Calendar (Day)
+import Data.Traversable (for)
 import Network.HTTP.Server
 import Network.HTTP.Server.HtmlForm
 import Network.HTTP.Server.Logger
@@ -24,15 +25,16 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Codec.Binary.UTF8.String (encodeString)
 
+import DataStore
+import Match
 import Output.Common
+import Output.Events
+import Output.ExportMatches
+import Output.Formatting
+import Output.GraphLawCurves
 import Output.Player
 import Output.Players
-import Output.Formatting
-import Output.ExportMatches
-import Output.Events
 import Player
-import Match
-import DataStore
 
 main :: IO ()
 main = serverWith
@@ -116,11 +118,24 @@ main = serverWith
                                 return (player,a,b)
            return $ ok $ renderHtml $ playersHtml today dat1
 
+
+    ["curves.js"] ->
+       withDatabase $ do
+           Just eventId <- getLatestEventId
+           players <- getPlayers
+           today <- liftIO $ localDay . zonedTimeToLocalTime <$> getZonedTime
+           dat <- getLawsForEvent eventId
+           let Just dat1 = for (Map.toList dat) $ \(i,(_,law)) ->
+                             do player <- Map.lookup i players
+                                return (player,law)
+           return $ ok $ generateFlotData $ Map.fromList dat1
+
     ["static","common.css" ] -> ok <$> readFile "static/common.css"
     ["static","style.css"  ] -> ok <$> readFile "static/style.css"
     ["static","results.css"] -> ok <$> readFile "static/results.css"
     ["static","ratings.css"] -> ok <$> readFile "static/ratings.css"
     ["static","jquery.flot.js"] -> ok <$> readFile "static/jquery.flot.js"
+    ["static","graph.html"] -> ok <$> readFile "static/graph.html"
 
     _ -> ok . renderHtml <$> mainPage
   `catch` \(SomeException e) -> return (bad (show e))

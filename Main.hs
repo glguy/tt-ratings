@@ -6,7 +6,6 @@ import Control.Monad.IO.Class
 import Data.Map (Map)
 import System.Environment
 import Tournament
-import Output.GraphLawCurves
 import Output.TournamentSummaryHtml
 import qualified Data.Map as Map
 import Text.Blaze.Html.Renderer.String (renderHtml)
@@ -16,7 +15,7 @@ import DataStore
 
 data Config = Config
   { currentEventId :: EventId
-  , resultsFn, ratingsFn :: FilePath
+  , resultsFn :: FilePath
   }
 
 main :: IO ()
@@ -42,27 +41,21 @@ main = withDatabase $ do
       selectLawFromResults s = (today,view summaryFinalLaw s)
       newLawsFromEvent = fmap selectLawFromResults results
 
-      -- We display degraded laws but we don't serialize them
-      -- This way only one degrade operation occurs between events per law
-      todaysLaws   = Map.union newLawsFromEvent degradedDayLaws
-
   namedResults <- nameResults playerMap results
-  namedTodaysLaws <- nameMap playerMap todaysLaws
 
   clearLawsForEvent $ currentEventId config
   ifor_ newLawsFromEvent $ \playerId (_day,law) -> addLaw playerId (currentEventId config) law
 
   liftIO $ writeFile (resultsFn config) $ renderHtml $ tournamentHtml today namedResults
-  liftIO $ writeFile "graph.js" $ generateFlotData $ fmap snd namedTodaysLaws
 
 getConfig :: IO Config
 getConfig = do
   args <- getArgs
   case args of
-    [currentEventStr, resultsFn, ratingsFn] ->
+    [currentEventStr, resultsFn] ->
       do let currentEventId = EventId $ read currentEventStr
          return Config {..}
-    _ -> fail "usage: tt-ratings EVENTID RESULTS RATINGS"
+    _ -> fail "usage: tt-ratings EVENTID RESULTS"
 
 nameMap :: (Monad m, Ord k, Ord k') => Map k k' -> Map k v -> m (Map k' v)
 nameMap names
