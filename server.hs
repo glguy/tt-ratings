@@ -73,17 +73,17 @@ main = serverWith
 
     ["exportplayers"] ->
       do ms <- withDatabase getPlayers
-         return $ ok $ show
+         return $ sendText OK $ show
            [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
 
     ["exportmatches"] ->
       do ms <- withDatabase exportMatches
-         return $ ok $ show ms
+         return $ sendText OK $ show ms
 
     ["events"]
        | GET <- rqMethod request ->
               do events <- withDatabase getEvents
-                 return $ ok $ eventsPage events
+                 return $ sendHTML OK $ eventsPage events
 
        | POST <- rqMethod request
        , Just form    <- fromRequest request
@@ -103,7 +103,7 @@ main = serverWith
        , Just playerId <- fmap PlayerId . readMaybe =<< lookup "playerId" url_params ->
          withDatabase $ do
            html <- playerPage playerId
-           return $ ok $ renderHtml html
+           return $ sendHTML OK html
 
     ["players"] ->
         withDatabase $ do
@@ -114,7 +114,7 @@ main = serverWith
            let Just dat1 = ifor dat $ \i (a,b) ->
                              do player <- Map.lookup i players
                                 return (player,a,b)
-           return $ ok $ renderHtml $ playersHtml today dat1
+           return $ sendHTML OK $ playersHtml today dat1
 
 
     ["curves.js"] ->
@@ -127,12 +127,12 @@ main = serverWith
                                 return (player,law)
            return $ ok $ generateFlotData $ Map.fromList dat1
 
-    ["static","common.css" ] -> ok <$> readFile "static/common.css"
-    ["static","style.css"  ] -> ok <$> readFile "static/style.css"
-    ["static","results.css"] -> ok <$> readFile "static/results.css"
-    ["static","ratings.css"] -> ok <$> readFile "static/ratings.css"
-    ["static","jquery.flot.js"] -> ok <$> readFile "static/jquery.flot.js"
-    ["static","graph.html"] -> ok <$> readFile "static/graph.html"
+    ["static","common.css" ] -> sendCSS OK <$> readFile "static/common.css"
+    ["static","style.css"  ] -> sendCSS OK <$> readFile "static/style.css"
+    ["static","results.css"] -> sendCSS OK <$> readFile "static/results.css"
+    ["static","ratings.css"] -> sendCSS OK <$> readFile "static/ratings.css"
+    ["static","jquery.flot.js"] -> sendText OK <$> readFile "static/jquery.flot.js"
+    ["static","graph.html"] -> sendText OK <$> readFile "static/graph.html"
 
     _ -> ok . renderHtml <$> mainPage
   `catch` \(SomeException e) -> return (bad (show e))
@@ -235,3 +235,29 @@ thePage ps table =
     ^{navigationLinks}
     ^{table}
 |]
+
+sendText       :: StatusCode -> String -> Response String
+sendText s v    = insertHeader HdrContentLength (show (length txt))
+                $ insertHeader HdrContentEncoding "UTF-8"
+                $ insertHeader HdrContentEncoding "text/plain"
+                $ insertHeader HdrConnection "close"
+                $ (respond s :: Response String) { rspBody = txt }
+  where txt     = encodeString v
+
+{-
+sendJSON       :: StatusCode -> JSValue -> Response String
+sendJSON s v    = insertHeader HdrContentType "application/json"
+                $ sendText s (showJSValue v "")
+-}
+
+sendHTML       :: StatusCode -> Html -> Response String
+sendHTML s v    = insertHeader HdrContentType "text/html"
+                $ sendText s (renderHtml v)
+
+sendCSS        :: StatusCode -> String -> Response String
+sendCSS s v     = insertHeader HdrContentType "text/css"
+                $ sendText s v
+
+sendScript     :: StatusCode -> String -> Response String
+sendScript s v  = insertHeader HdrContentType "application/x-javascript"
+                $ sendText s v

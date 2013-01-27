@@ -6,15 +6,14 @@ import Text.Hamlet
 import Control.Lens
 import qualified Data.Map as Map
 import Data.Map (Map)
-import Text.Blaze.Html.Renderer.String (renderHtml)
 
 import Event
 import DataStore (EventId(EventId))
 import Output.Formatting
 import Output.Common
 
-eventsPage :: Map EventId (Event EventId) -> String
-eventsPage events = renderHtml [shamlet|
+eventsPage :: Map EventId (Event EventId) -> Html
+eventsPage events = [shamlet|
 $doctype 5
 <html>
   <head>
