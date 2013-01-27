@@ -3,12 +3,17 @@ module Main where
 
 import Control.Lens
 import Control.Monad.IO.Class
+import Control.Monad.Reader
 import Data.Map (Map)
+import Control.Concurrent.MVar (newMVar)
 import System.Environment
 import Tournament
 import Output.TournamentSummaryHtml
 import qualified Data.Map as Map
 import Text.Blaze.Html.Renderer.String (renderHtml)
+
+import Database.SQLite.Simple (withConnection)
+import Snap.Snaplet.SqliteSimple (Sqlite(Sqlite))
 
 import Event
 import DataStore
@@ -18,8 +23,12 @@ data Config = Config
   , resultsFn :: FilePath
   }
 
+runDb m = withConnection dbName $ \db ->
+  do v <- newMVar db
+     runReaderT m $ Sqlite v
+
 main :: IO ()
-main = withDatabase $ do
+main = runDb $ do
   config <- liftIO getConfig
 
   playerMap    <- getPlayers

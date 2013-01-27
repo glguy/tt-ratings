@@ -1,28 +1,30 @@
 {-# LANGUAGE RecordWildCards, PatternGuards, QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Main (main) where
 
 import Control.Applicative
-import Control.Exception
+import Control.Exception ()
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.List (sortBy)
 import Data.List.Split (splitOn)
 import Data.Map (Map)
+import Data.Monoid
 import Data.Ord (comparing)
 import Data.Time
 import Data.Foldable (for_)
 import Data.Traversable (for)
-import Network.HTTP.Server
-import Network.HTTP.Server.HtmlForm
-import Network.HTTP.Server.Logger
 import Network.URL
 import System.Locale
-import Text.Blaze.Html.Renderer.String (renderHtml)
+import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
 import Text.Hamlet (shamlet, Html)
 import Text.Read(readMaybe)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import Codec.Binary.UTF8.String (encodeString)
+import qualified Data.Text.Encoding as Enc
+import Codec.Binary.UTF8.Generic (toString)
 
 import DataStore
 import Match
@@ -35,130 +37,114 @@ import Output.Player
 import Output.Players
 import Player
 
+import Snap
+import Snap.Util.FileServe
+import Snap.Http.Server
+
+import Snap.Snaplet.SqliteSimple
+data App = App
+  { _db :: Snaplet Sqlite
+  }
+
+makeLenses ''App
+
+instance HasSqlite (Handler b App) where
+   getSqliteState = with db get
+
+appInit :: SnapletInit App App
+appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
+  d <- nestSnaplet "db" db sqliteInit
+  addRoutes
+     [ ("match", method POST matchPostHandler)
+     , ("matchop", method POST matchopPostHandler)
+     , ("exportplayers", exportPlayersHandler)
+     , ("exportmatches", exportMatchesHandler)
+     , ("events", method GET eventsGetHandler)
+     , ("events", method POST eventsPostHandler)
+     , ("player", playerHandler)
+     , ("players", playersHandler)
+     , ("curves.js", curvesHandler)
+     ]
+  wrapSite (<|> dir "static" (serveDirectory "static"))
+  wrapSite (<|> defaultHandler)
+
+  return $ App { _db = d }
+
 main :: IO ()
-main = serverWith
-  Config
-    { srvLog = quietLogger
-    , srvHost = "0.0.0.0"
-    , srvPort = 8000
-    }
-    $ \_ URL { .. } request ->
-  case splitOn "/" url_path of
-    ["match"]
-      | POST <- rqMethod request
-      , Just form <- fromRequest request
-      , Just winner <- lookupString form "winner"
-      , Just loser  <- lookupString form "loser" ->
-         withDatabase $ do
-           Just winnerId <- getPlayerIdByName $ Text.pack winner
-           Just loserId  <- getPlayerIdByName $ Text.pack loser
-           _matchId <- saveMatch winnerId loserId
-           liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
-           return $ redir "/"
+main = serveSnaplet defaultConfig appInit
 
-    ["matchop"]
-      | POST <- rqMethod request
-      , Just form <- fromRequest request
-      , Just action  <- lookupString form "action"
-      , Just matchId <- MatchId <$> lookupRead form "matchId" ->
-             withDatabase $ do
-               case action of
-                 "delete"       -> deleteMatchById matchId
-                 "duplicate"  ->
-                    do mbMatch <- getMatchById' matchId
-                       for_ mbMatch $ \match ->
-                         saveMatch (view matchWinner match) (view matchLoser match)
-                 _ -> return ()
-               return $ redir "/"
+matchPostHandler = do
+  winner <- toString <$> getParam' "winner"
+  loser  <- toString <$> getParam' "loser"
+  Just winnerId <- getPlayerIdByName $ Text.pack winner
+  Just loserId  <- getPlayerIdByName $ Text.pack loser
+  _matchId <- saveMatch winnerId loserId
+  liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
+  redirect "/"
 
-    ["exportplayers"] ->
-      do ms <- withDatabase getPlayers
-         return $ sendText OK $ show
-           [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
+matchopPostHandler = do
+  action  <- toString <$> getParam' "action"
+  matchId <- fmap MatchId . liftIO . readIO . toString =<< getParam' "matchId"
+  case action of
+      "delete"       -> deleteMatchById matchId
+      "duplicate"  ->
+        do mbMatch <- getMatchById' matchId
+           for_ mbMatch $ \match ->
+             saveMatch (view matchWinner match) (view matchLoser match)
+      _ -> return ()
+  redirect "/"
 
-    ["exportmatches"] ->
-      do ms <- withDatabase exportMatches
-         return $ sendText OK $ show ms
+exportPlayersHandler = do
+  ms <- getPlayers
+  let xs = [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
+  writeText $ Text.pack $ show xs
 
-    ["events"]
-       | GET <- rqMethod request ->
-              do events <- withDatabase getEvents
-                 return $ sendHTML OK $ eventsPage events
+exportMatchesHandler = do
+  ms <- exportMatches
+  writeText $ Text.pack $ show ms
 
-       | POST <- rqMethod request
-       , Just form    <- fromRequest request
-       , Just action  <- lookupString form "action"
-       , Just eventId <- EventId <$> lookupRead   form "eventId" ->
-           withDatabase $ do
-             case action of
-               "Open"   -> setEventActive eventId True
-               "Close"  -> setEventActive eventId False
-               "Delete" -> deleteEventById eventId
-               _        -> fail "Unknown operation"
+eventsGetHandler = do
+  events <- getEvents
+  writeBuilder $ renderHtmlBuilder $ eventsPage events
 
-             return $ redir "/events"
+eventsPostHandler = do
+  action <- toString <$> getParam' "action"
+  eventId <- EventId . read . toString <$> getParam' "eventId"
+  case action of
+      "Open"   -> setEventActive eventId True
+      "Close"  -> setEventActive eventId False
+      "Delete" -> deleteEventById eventId
+      _        -> fail "Unknown operation"
+  redirect "/events"
 
-    ["player"]
-       | GET <- rqMethod request
-       , Just playerId <- fmap PlayerId . readMaybe =<< lookup "playerId" url_params ->
-         withDatabase $ do
-           html <- playerPage playerId
-           return $ sendHTML OK html
+playerHandler = do
+  playerId <- fmap PlayerId . liftIO . readIO . toString =<< getParam' "playerId"
+  html <- playerPage playerId
+  writeBuilder $ renderHtmlBuilder html
 
-    ["players"] ->
-        withDatabase $ do
-           Just eventId <- getLatestEventId
-           players <- getPlayers
-           today <- liftIO $ localDay . zonedTimeToLocalTime <$> getZonedTime
-           dat <- getLawsForEvent eventId
-           let Just dat1 = ifor dat $ \i (a,b) ->
+playersHandler = do
+  Just eventId <- getLatestEventId
+  players <- getPlayers
+  today <- liftIO $ localDay . zonedTimeToLocalTime <$> getZonedTime
+  dat <- getLawsForEvent eventId
+  let Just dat1 = ifor dat $ \i (a,b) ->
                              do player <- Map.lookup i players
                                 return (player,a,b)
-           return $ sendHTML OK $ playersHtml today dat1
+  writeBuilder $ renderHtmlBuilder $ playersHtml today dat1
 
-
-    ["curves.js"] ->
-       withDatabase $ do
+curvesHandler = do
            Just eventId <- getLatestEventId
            players <- getPlayers
            dat <- getLawsForEvent eventId
            let Just dat1 = for (Map.toList dat) $ \(i,(_,law)) ->
                              do player <- Map.lookup i players
                                 return (player,law)
-           return $ ok $ generateFlotData $ Map.fromList dat1
+           writeText $ Text.pack $ generateFlotData $ Map.fromList dat1
 
-    ["static","common.css" ] -> sendCSS OK <$> readFile "static/common.css"
-    ["static","style.css"  ] -> sendCSS OK <$> readFile "static/style.css"
-    ["static","results.css"] -> sendCSS OK <$> readFile "static/results.css"
-    ["static","ratings.css"] -> sendCSS OK <$> readFile "static/ratings.css"
-    ["static","jquery.flot.js"] -> sendText OK <$> readFile "static/jquery.flot.js"
-    ["static","graph.html"] -> sendText OK <$> readFile "static/graph.html"
 
-    _ -> ok . renderHtml <$> mainPage
-  `catch` \(SomeException e) -> return (bad (show e))
+defaultHandler = writeBuilder . renderHtmlBuilder =<< mainPage
 
-  where
-  ok body = Response { rspCode   = (2,0,0)
-                     , rspReason = "OK"
-                     , rspHeaders = hdrs
-                     , rspBody   = encodeString body }
-
-  hdrs = [ mkHeader HdrConnection "close"]
-
-  redir str = Response { rspCode = (3,0,2)
-                  , rspReason = "Found"
-                  , rspHeaders = hdrs ++ [ mkHeader HdrLocation str ]
-                  , rspBody = "OK"
-                  }
-
-  bad e = Response { rspCode = (5,0,0)
-                   , rspReason = "It didn't work"
-                   , rspHeaders = hdrs
-                   , rspBody = e
-                   }
-
-mainPage :: IO Html
-mainPage = withDatabase $
+mainPage =
   do t   <- liftIO $ zonedTimeToLocalTime <$> getZonedTime
      tz  <- liftIO $ getCurrentTimeZone
      mbeventId  <- getCurrentEventId
@@ -169,7 +155,7 @@ mainPage = withDatabase $
      let Just namedMatches = (each . traverse) (flip Map.lookup ps) ms
      liftIO $ thePage (Map.elems ps) $ formatMatches tz (localDay t) namedMatches
 
-saveMatch :: DatabaseM m => PlayerId -> PlayerId -> m MatchId
+saveMatch :: (Functor m, HasSqlite m, MonadIO m) => PlayerId -> PlayerId -> m MatchId
 saveMatch _matchWinner _matchLoser = do
   _matchTime <- liftIO getCurrentTime
   eventId <- do mb <- getCurrentEventId
@@ -177,6 +163,12 @@ saveMatch _matchWinner _matchLoser = do
                   Just eventId -> return eventId
                   Nothing      -> fail "No event is currently open"
   addMatchToEvent Match{..} eventId
+
+getParam' name = do
+  mb <- getParam name
+  case mb of
+    Nothing -> fail ("Missing parameter: " ++ show name)
+    Just x  -> return x
 
 --------------------------------------------------------------------------------
 
@@ -187,7 +179,7 @@ formatMatch tz i (MatchId mid) match = [shamlet|
     <td>#{w}
     <td>#{l}
     <td>
-      <form .deleteform action="/matchop" method=post enctype="multipart/form-data">
+      <form .deleteform action="/matchop" method=post>
         <input type=hidden name=matchId value=#{show mid}>
         <input .deletebutton type=submit name=action value=duplicate>
         <input .deletebutton type=submit name=action value=delete>
@@ -223,7 +215,7 @@ thePage ps table =
     <link rel=stylesheet type=text/css href=static/style.css>
   <body>
     <div .entry>
-      <form action="/match" method=POST enctype="multipart/form-data">
+      <form action="/match" method=POST>
         <label for=winner>Winner:
         <input autocomplete=off list=players name=winner #winner>
         <label for=loser>Loser:
@@ -235,29 +227,3 @@ thePage ps table =
     ^{navigationLinks}
     ^{table}
 |]
-
-sendText       :: StatusCode -> String -> Response String
-sendText s v    = insertHeader HdrContentLength (show (length txt))
-                $ insertHeader HdrContentEncoding "UTF-8"
-                $ insertHeader HdrContentEncoding "text/plain"
-                $ insertHeader HdrConnection "close"
-                $ (respond s :: Response String) { rspBody = txt }
-  where txt     = encodeString v
-
-{-
-sendJSON       :: StatusCode -> JSValue -> Response String
-sendJSON s v    = insertHeader HdrContentType "application/json"
-                $ sendText s (showJSValue v "")
--}
-
-sendHTML       :: StatusCode -> Html -> Response String
-sendHTML s v    = insertHeader HdrContentType "text/html"
-                $ sendText s (renderHtml v)
-
-sendCSS        :: StatusCode -> String -> Response String
-sendCSS s v     = insertHeader HdrContentType "text/css"
-                $ sendText s v
-
-sendScript     :: StatusCode -> String -> Response String
-sendScript s v  = insertHeader HdrContentType "application/x-javascript"
-                $ sendText s v

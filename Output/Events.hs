@@ -24,7 +24,7 @@ $doctype 5
   <body>
     ^{navigationLinks}
     <h1>Events
-    <form action="/events" method="post" enctype="multipart/form-data">
+    <form action="/events" method="post">
       <div>
         <input type=submit name=action value=Open>
         <input type=submit name=action value=Close>

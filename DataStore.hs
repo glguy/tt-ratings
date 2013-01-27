@@ -14,7 +14,7 @@ import LawSerialization
 
 import Control.Applicative
 import Control.Lens
-import Control.Monad (unless)
+import Control.Monad (unless, MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad.Trans.Maybe
@@ -24,112 +24,110 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Time
 import Data.Traversable (for)
-import Database.SQLite.Simple
 import Database.SQLite.Simple.FromField
 import Database.SQLite.Simple.ToField
+import Database.SQLite.Simple (lastInsertRowId)
+
+import Snap.Core (MonadSnap(liftSnap))
 import qualified Data.Map as Map
+import Snap.Snaplet.SqliteSimple
 
 dbName :: FilePath
 dbName = "pingpong.db"
 
-withDatabase :: DatabaseT IO a -> IO a
-withDatabase (DatabaseT f) = withConnection dbName $ \con ->
-  do execute_ con "PRAGMA foreign_keys = ON"
-     f con
-
-getPlayers :: DatabaseM m => m (Map PlayerId Player)
-getPlayers = do xs <- query_' "SELECT playerId, playerName FROM player"
+getPlayers :: HasSqlite m => m (Map PlayerId Player)
+getPlayers = do xs <- query_ "SELECT playerId, playerName FROM player"
                 return $ Map.fromList [(k,v) | Only k :. v <- xs]
 
-getEvents :: DatabaseM m => m (Map EventId (Event EventId))
+getEvents :: HasSqlite m => m (Map EventId (Event EventId))
 getEvents =
-  do xs <- query_' "SELECT eventId, eventName, eventDay, eventActive, previousEventId FROM event"
+  do xs <- query_ "SELECT eventId, eventName, eventDay, eventActive, previousEventId FROM event"
      return $ Map.fromList [(i,event) | Only i :. event <- xs]
 
-addEvent :: DatabaseM m => Event EventId -> m EventId
+addEvent :: (Functor m, HasSqlite m) => Event EventId -> m EventId
 addEvent Event{..} =
-  do execute' "INSERT INTO event (eventName, eventDay, eventActive, previousEventId) VALUES (?,?,?,?)"
+  do execute "INSERT INTO event (eventName, eventDay, eventActive, previousEventId) VALUES (?,?,?,?)"
        (_eventName, _eventDay, _eventActive, _eventPrevious)
      EventId <$> lastInsertRowId'
 
-getCurrentEventId :: DatabaseM m => m (Maybe EventId)
+getCurrentEventId :: HasSqlite m => m (Maybe EventId)
 getCurrentEventId =
-  do xs <- query_' "SELECT eventId FROM event WHERE eventActive = 1 ORDER BY eventDay DESC LIMIT 1"
+  do xs <- query_ "SELECT eventId FROM event WHERE eventActive = 1 ORDER BY eventDay DESC LIMIT 1"
      return $! case xs of
        []       -> Nothing
        Only x:_ -> Just x
 
-getLatestEventId :: DatabaseM m => m (Maybe EventId)
+getLatestEventId :: HasSqlite m => m (Maybe EventId)
 getLatestEventId =
-  do xs <- query_' "SELECT eventId FROM event ORDER BY eventDay DESC, eventDay DESC LIMIT 1"
+  do xs <- query_ "SELECT eventId FROM event ORDER BY eventDay DESC, eventDay DESC LIMIT 1"
      return $! case xs of
        []       -> Nothing
        Only x:_ -> Just x
 
-getEventById :: DatabaseM m => EventId -> m (Maybe (Event EventId))
+getEventById :: (Functor m, HasSqlite m) => EventId -> m (Maybe (Event EventId))
 getEventById eventid =
-  listToMaybe <$> query' "SELECT eventName, eventDay, eventActive, previousEventId\
+  listToMaybe <$> query "SELECT eventName, eventDay, eventActive, previousEventId\
                            \ FROM event WHERE eventId = ?"
                        (Only eventid)
 
-deleteEventById :: DatabaseM m => EventId -> m ()
+deleteEventById :: HasSqlite m => EventId -> m ()
 deleteEventById eventId = do
-  execute' "DELETE FROM match WHERE eventId = ?" (Only eventId)
-  execute' "DELETE FROM law   WHERE eventId = ?" (Only eventId)
-  execute' "DELETE FROM event WHERE eventId = ?" (Only eventId)
+  execute "DELETE FROM match WHERE eventId = ?" (Only eventId)
+  execute "DELETE FROM law   WHERE eventId = ?" (Only eventId)
+  execute "DELETE FROM event WHERE eventId = ?" (Only eventId)
 
-setEventActive :: DatabaseM m => EventId -> Bool -> m ()
+setEventActive :: HasSqlite m => EventId -> Bool -> m ()
 setEventActive eventId active =
-  execute' "UPDATE event SET eventActive = ? WHERE eventId = ?"
+  execute "UPDATE event SET eventActive = ? WHERE eventId = ?"
            (active, eventId)
 
-addMatchToEvent :: DatabaseM m => Match PlayerId -> EventId -> m MatchId
+addMatchToEvent :: (Functor m, HasSqlite m) => Match PlayerId -> EventId -> m MatchId
 addMatchToEvent Match{..} eventId =
-  do [Only active] <- query' "SELECT eventActive FROM event WHERE eventId = ?" (Only eventId)
+  do [Only active] <- query "SELECT eventActive FROM event WHERE eventId = ?" (Only eventId)
      unless active $ fail "Attempting to add match to an inactive event"
-     execute' "INSERT INTO match (eventId, winnerId, loserId, matchTime) VALUES (?,?,?,?)"
+     execute "INSERT INTO match (eventId, winnerId, loserId, matchTime) VALUES (?,?,?,?)"
        (eventId, _matchWinner, _matchLoser, _matchTime)
      MatchId <$> lastInsertRowId'
 
-getMatchById :: DatabaseM m => MatchId -> m (Maybe (Match Player))
+getMatchById :: (Functor m, HasSqlite m) => MatchId -> m (Maybe (Match Player))
 getMatchById matchid =
-  listToMaybe <$> query' "SELECT w.playerName, l.playerName, matchTime\
+  listToMaybe <$> query "SELECT w.playerName, l.playerName, matchTime\
               \ FROM match\
               \ JOIN player AS w ON w.playerId = winnerId\
               \ JOIN player AS l ON l.playerId = loserId\
               \ WHERE matchId = ?"
              (Only matchid)
 
-getMatchById' :: DatabaseM m => MatchId -> m (Maybe (Match PlayerId))
+getMatchById' :: (Functor m, HasSqlite m) => MatchId -> m (Maybe (Match PlayerId))
 getMatchById' matchid =
-  listToMaybe <$> query' "SELECT winnerId, loserId, matchTime\
+  listToMaybe <$> query "SELECT winnerId, loserId, matchTime\
               \ FROM match\
               \ WHERE matchId = ?"
              (Only matchid)
 
-deleteMatchById :: DatabaseM m => MatchId -> m ()
+deleteMatchById :: HasSqlite m => MatchId -> m ()
 deleteMatchById matchId =
-     execute' "DELETE FROM match WHERE matchId = ?" $ Only matchId
+     execute "DELETE FROM match WHERE matchId = ?" $ Only matchId
 
-addPlayer :: DatabaseM m => Player -> m PlayerId
+addPlayer :: (Functor m, HasSqlite m) => Player -> m PlayerId
 addPlayer Player{..} =
-  do execute' "INSERT INTO player (playerName) VALUES (?)" (Only _playerName)
+  do execute "INSERT INTO player (playerName) VALUES (?)" (Only _playerName)
      PlayerId <$> lastInsertRowId'
 
-getPlayerIdByName :: DatabaseM m => Text -> m (Maybe PlayerId)
+getPlayerIdByName :: HasSqlite m => Text -> m (Maybe PlayerId)
 getPlayerIdByName name =
-  do xs <- query' "SELECT playerId FROM player WHERE playerName = ?"
+  do xs <- query "SELECT playerId FROM player WHERE playerName = ?"
                     (Only name)
      return $! case xs of
        [] -> Nothing
        Only x : _ -> x
 
-getPlayerById :: DatabaseM m => PlayerId -> m (Maybe Player)
-getPlayerById playerId = listToMaybe <$> query' "SELECT playerName FROM player WHERE playerId = ?" (Only playerId)
+getPlayerById :: (Functor m, HasSqlite m) => PlayerId -> m (Maybe Player)
+getPlayerById playerId = listToMaybe <$> query "SELECT playerName FROM player WHERE playerId = ?" (Only playerId)
 
-getMatchesForDay :: DatabaseM m => Day -> m [(MatchId, Match Player)]
+getMatchesForDay :: HasSqlite m => Day -> m [(MatchId, Match Player)]
 getMatchesForDay day =
-  do xs <- query' "SELECT matchId, w.playerName, l.playerName, matchTime\
+  do xs <- query "SELECT matchId, w.playerName, l.playerName, matchTime\
               \ FROM match\
               \ JOIN player AS w ON w.playerId = winnerId\
               \ JOIN player AS l ON l.playerId = loserId\
@@ -137,21 +135,21 @@ getMatchesForDay day =
                (Only day)
      return [(x,y) | Only x :. y <- xs]
 
-getMatchesByEventId :: DatabaseM m => EventId -> m (Map MatchId (Match PlayerId))
+getMatchesByEventId :: HasSqlite m => EventId -> m (Map MatchId (Match PlayerId))
 getMatchesByEventId eventId =
-  do xs <- query' "SELECT matchId, winnerId, loserId, matchTime\
+  do xs <- query "SELECT matchId, winnerId, loserId, matchTime\
               \ FROM match\
               \ WHERE eventId = ?"
            (Only eventId)
      return $ Map.fromList [(k,v) | Only k :. v <- xs]
 
-getActivePlayerIds :: DatabaseM m => m [PlayerId]
+getActivePlayerIds :: (Functor m, HasSqlite m) => m [PlayerId]
 getActivePlayerIds =
-  map fromOnly <$> query_' "SELECT playerId FROM player\
+  map fromOnly <$> query_ "SELECT playerId FROM player\
                            \ WHERE playerId IN (SELECT winnerId FROM match)\
                            \    OR playerId IN (SELECT loserId FROM match)"
 
-getLawsForEvent :: DatabaseM m => EventId -> m (Map PlayerId (Day, Law))
+getLawsForEvent :: (Applicative m, HasSqlite m) => EventId -> m (Map PlayerId (Day, Law))
 getLawsForEvent topEventId = do
   playerIds <- getActivePlayerIds
 
@@ -163,15 +161,15 @@ getLawsForEvent topEventId = do
     return (playerId, law)
   where
 
-  parentEvent :: DatabaseM m => EventId -> MaybeT m EventId
+  parentEvent :: HasSqlite m => EventId -> MaybeT m EventId
   parentEvent e = do
-    Only (Just x) : _ <- query' "SELECT previousEventId FROM event WHERE eventId = ?" (Only e)
+    Only (Just x) : _ <- query "SELECT previousEventId FROM event WHERE eventId = ?" (Only e)
     -- Pattern match failure handled by MaybeT
     return x
 
-  search :: DatabaseM m => PlayerId -> EventId -> MaybeT m (Day, Law)
+  search :: HasSqlite m => PlayerId -> EventId -> MaybeT m (Day, Law)
   search playerId eventId =
-    do laws <- query' "SELECT eventDay,lawData\
+    do laws <- query "SELECT eventDay,lawData\
                              \ FROM law\
                              \ JOIN event USING (eventId)\
                              \ WHERE playerId = ? AND eventId = ?"
@@ -181,71 +179,24 @@ getLawsForEvent topEventId = do
                   search playerId e
          (Only day :. law):_ -> return (day,law)
 
-clearLawsForEvent :: DatabaseM m => EventId -> m ()
-clearLawsForEvent eventId = execute' "DELETE FROM law WHERE eventId = ?" (Only eventId)
+clearLawsForEvent :: HasSqlite m => EventId -> m ()
+clearLawsForEvent eventId = execute "DELETE FROM law WHERE eventId = ?" (Only eventId)
 
-addLaw :: DatabaseM m => PlayerId -> EventId -> Law -> m ()
+addLaw :: HasSqlite m => PlayerId -> EventId -> Law -> m ()
 addLaw playerId eventId law =
-  execute' "INSERT INTO law (playerId, eventId, mean, stddev, lawData) VALUES (?,?,?,?,?)"
+  execute "INSERT INTO law (playerId, eventId, mean, stddev, lawData) VALUES (?,?,?,?,?)"
     (playerId, eventId, lawMean law, lawStddev law, serializeLaw law)
 
-getLawsForPlayer :: DatabaseM m => PlayerId -> m (Map EventId (Event EventId, Law))
+getLawsForPlayer :: HasSqlite m => PlayerId -> m (Map EventId (Event EventId, Law))
 getLawsForPlayer playerId = do
-  xs <- query' "SELECT eventId, eventName, eventDay, eventActive, previousEventId, lawData\
+  xs <- query "SELECT eventId, eventName, eventDay, eventActive, previousEventId, lawData\
                \ FROM law\
                \ NATURAL JOIN event \
                \ WHERE playerId = ?" (Only playerId)
   return $ Map.fromList [(k,(event,law)) | Only k :. event :. law <- xs]
 
-newtype DatabaseT m a = DatabaseT (Connection -> m a)
-
-runDatabaseT :: Connection -> DatabaseT m a -> m a
-runDatabaseT con (DatabaseT f) = f con
-
-instance MonadIO m => MonadIO (DatabaseT m) where
-  liftIO m = DatabaseT $ \_ -> liftIO m
-
-instance Functor m => Functor (DatabaseT m) where
-  fmap f (DatabaseT g) = DatabaseT $ fmap f . g
-
-instance Applicative m => Applicative (DatabaseT m) where
-  DatabaseT f <*> DatabaseT g = DatabaseT $ \con -> f con <*> g con
-  pure x = DatabaseT $ \_ -> pure x
-
-instance Monad m => Monad (DatabaseT m) where
-  m >>= f  = DatabaseT $ \con -> runDatabaseT con m >>= runDatabaseT con . f
-  fail e   = DatabaseT $ \_ -> fail e
-  return x = DatabaseT $ \_ -> return x
-
-instance MonadTrans DatabaseT where
-  lift m = DatabaseT $ \_ -> m
-
-class (MonadIO m, Monad m, Applicative m) => DatabaseM m where
-  connection :: m Connection
-
-instance (MonadIO m, Monad m, Applicative m) => DatabaseM (DatabaseT m) where
-  connection = DatabaseT $ \con -> return con
-
-instance DatabaseM m => DatabaseM (MaybeT m) where
-  connection = lift connection
-
-query' :: (DatabaseM m, ToRow q, FromRow r) => Query -> q -> m [r]
-query' q args = do
-  con <- connection
-  liftIO $ query con q args
-
-query_' :: (DatabaseM m, FromRow r) => Query -> m [r]
-query_' q = do
-  con <- connection
-  liftIO $ query_ con q
-
-execute' :: (DatabaseM m, ToRow q) => Query -> q -> m ()
-execute' q args = do
-  con <- connection
-  liftIO $ execute con q args
-
-lastInsertRowId' :: DatabaseM m => m Int64
-lastInsertRowId' = liftIO . lastInsertRowId =<< connection
+lastInsertRowId' :: HasSqlite m => m Int64
+lastInsertRowId' = withSqlite lastInsertRowId
 
 fromMaybeT :: Functor m => x -> MaybeT m x -> m x
 fromMaybeT x m = fromMaybe x <$> runMaybeT m
@@ -294,3 +245,6 @@ instance FromField p => FromRow (Event p) where
                _eventActive   <- field
                _eventPrevious <- field
                return Event {..}
+
+instance HasSqlite m => HasSqlite (MaybeT m) where
+  getSqliteState = lift getSqliteState

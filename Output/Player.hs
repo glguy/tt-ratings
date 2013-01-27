@@ -13,7 +13,9 @@ import DataStore
 import Player
 import Law
 
-playerPage :: DatabaseM m => PlayerId -> m Html
+import Snap.Snaplet.SqliteSimple
+
+playerPage :: (Functor m, HasSqlite m) => PlayerId -> m Html
 playerPage playerId = do
    Just player <- getPlayerById playerId
    events <- getLawsForPlayer playerId

@@ -1,5 +1,6 @@
 module Output.ExportMatches where
 
+import Control.Applicative
 import Control.Lens
 import Data.Traversable
 import Data.Int (Int64)
@@ -10,7 +11,9 @@ import DataStore
 import Event
 import Match
 
-exportMatches :: DatabaseM m => m [(Text, String, [(Int64, Int64)])]
+import Snap.Snaplet.SqliteSimple
+
+exportMatches :: (Applicative m, HasSqlite m) => m [(Text, String, [(Int64, Int64)])]
 exportMatches =
   do events <- getEvents
      for (Map.toList events) $ \(eventId,event) ->
