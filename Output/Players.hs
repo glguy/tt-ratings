@@ -56,7 +56,7 @@ $doctype 5
             <td>
               <div .bargraph #graph#{i}>
             <td>
-              <a href="/player?playerId=#{show $ op PlayerId playerId}">details
+              <a href="/player/#{show $ op PlayerId playerId}">details
   |]
   where
   title       = "Player List - " ++ formatLongDay day

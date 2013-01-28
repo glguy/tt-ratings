@@ -44,3 +44,8 @@ div#navigation li {
   display: inline;
   padding-right: 3em;
 }
+
+td.num {
+  text-align: right;
+}
+

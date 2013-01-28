@@ -1,25 +1,26 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Output.TournamentSummaryHtml where
 
-import Law
-import Player
-import Output.Formatting
-import Data.Time.Calendar
-import Data.List.Split (chunksOf)
-import Tournament
-import Text.Hamlet (Html, shamlet)
 import Control.Lens
+import Data.List.Split (chunksOf)
 import Data.Map (Map)
-import qualified Data.Map as Map
+import qualified Data.Text as Text
+import Event
+import Law
 import Output.Common
+import Output.Formatting
+import Player
+import Text.Hamlet (Html, shamlet)
+import Tournament
+import qualified Data.Map as Map
 
 tournamentColumns :: Int
 tournamentColumns = 2
 
-tournamentHtml :: Day -> Map Player (PlayerSummary Player) -> Html
-tournamentHtml day results = [shamlet|
+tournamentHtml :: Event a -> Map Player (PlayerSummary Player) -> Html
+tournamentHtml event results = [shamlet|
 $doctype 5
-$with title <- formatTournamentTitle day
+$with title <- formatTournamentTitle event
  <html>
   <head>
     ^{metaTags}
@@ -39,12 +40,14 @@ $with title <- formatTournamentTitle day
   summary = [shamlet|
     <table .summary .data>
       <tr>
-        <th rowspan=2>Name
+        <th>
         <th .colgroup colspan=2>Initial
-        <th rowspan=2>Δμ
-        <th rowspan=2>Δσ
+        <th .colgroup colspan=2>Δ
         <th .colgroup colspan=2>Final
       <tr>
+        <th>Name
+        <th>μ
+        <th>σ
         <th>μ
         <th>σ
         <th>μ
@@ -53,12 +56,12 @@ $with title <- formatTournamentTitle day
          $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
           <tr :odd i:.alt>
             <td .opponent>#{view playerName name}
-            <td .rating>#{showRound $ lawMean   initial}
-            <td .rating>#{showRound $ lawStddev initial}
-            <td .delta>^{formatDelta $ lawMean final - lawMean initial}
-            <td .delta>^{formatDelta $ lawStddev final - lawStddev initial}
-            <td .rating>#{showRound $ lawMean   final}
-            <td .rating>#{showRound $ lawStddev final}
+            <td .num .rating>#{showRound $ lawMean   initial}
+            <td .num .rating>#{showRound $ lawStddev initial}
+            <td .num .delta>^{formatDelta $ lawMean final - lawMean initial}
+            <td .num .delta>^{formatDelta $ lawStddev final - lawStddev initial}
+            <td .num .rating>#{showRound $ lawMean   final}
+            <td .num .rating>#{showRound $ lawStddev final}
 |]
 
   detailed = [shamlet|
@@ -71,15 +74,17 @@ $with title <- formatTournamentTitle day
           <span .playername>#{view playerName name}
           <table .matchbox .data>
             <tr>
-              <th rowspan=2>Δμ
-              <th rowspan=2>Δσ
+              <th .colgroup colspan=2>Δ
               <th .colgroup colspan=3>Opponent
-              <th rowspan=2>W
-              <th rowspan=2>L
+              <th .colgroup colspan=2>
             <tr>
               <th>μ
               <th>σ
+              <th>μ
+              <th>σ
               <th>Name
+              <th>W
+              <th>L
             $forall (i,(opponentName,summary)) <- itoList $ Map.toList $ view summaryMatches summ
                <tr :odd i:.alt>
                 <td .delta>^{formatDelta $ summaryMeanChange   summary}
@@ -96,8 +101,12 @@ $with title <- formatTournamentTitle day
 isZero :: Int -> Bool
 isZero z = z == 0
 
-formatTournamentTitle :: Day -> String
-formatTournamentTitle day = "Tournament Results - " ++ formatLongDay day
+formatTournamentTitle :: Event a -> String
+formatTournamentTitle event
+  = "Tournament Results - "
+ ++ Text.unpack (view eventName event)
+ ++ " - "
+ ++ formatLongDay (view eventDay event)
 
 formatDelta :: Double -> Html
 formatDelta d = case compare d 0 of

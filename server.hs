@@ -59,12 +59,12 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
      , ("exportmatches", exportMatchesHandler)
      , ("events", method GET eventsGetHandler)
      , ("events", method POST eventsPostHandler)
-     , ("player", playerHandler)
+     , ("player/:playerId", playerHandler)
      , ("players", playersHandler)
      , ("curves.js", curvesHandler)
+     , ("static", serveDirectory "static")
+     , ("", defaultHandler)
      ]
-  wrapSite (<|> dir "static" (serveDirectory "static"))
-  wrapSite (<|> defaultHandler)
 
   return $ App { _db = d }
 

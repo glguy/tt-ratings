@@ -27,8 +27,8 @@ $doctype 5
   <head>
     ^{metaTags}
     <title>Player
-    <link rel=stylesheet type=text/css href=static/common.css>
-    <link rel=stylesheet type=text/css href=static/ratings.css>
+    <link rel=stylesheet type=text/css href=/static/common.css>
+    <link rel=stylesheet type=text/css href=/static/ratings.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
     <script language=javascript src=/static/jquery.flot.js>
     <script language=javascript>#{preEscapedToHtml $ graphScript laws}
