@@ -24,7 +24,7 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Time
 import Data.Traversable (for)
-import Database.SQLite.Simple (lastInsertRowId)
+import qualified Database.SQLite.Simple as Sqlite
 import Database.SQLite.Simple.FromField
 import Database.SQLite.Simple.ToField
 import Snap.Snaplet.SqliteSimple
@@ -43,7 +43,7 @@ addEvent :: HasSqlite m => Event EventId -> m EventId
 addEvent Event{..} =
   do execute "INSERT INTO event (eventName, eventDay, eventActive, previousEventId) VALUES (?,?,?,?)"
        (_eventName, _eventDay, _eventActive, _eventPrevious)
-     liftM EventId lastInsertRowId'
+     liftM EventId lastInsertRowId
 
 getCurrentEventId :: HasSqlite m => m (Maybe EventId)
 getCurrentEventId =
@@ -82,7 +82,7 @@ addMatchToEvent Match{..} eventId =
      unless active $ fail "Attempting to add match to an inactive event"
      execute "INSERT INTO match (eventId, winnerId, loserId, matchTime) VALUES (?,?,?,?)"
        (eventId, _matchWinner, _matchLoser, _matchTime)
-     MatchId `liftM` lastInsertRowId'
+     MatchId `liftM` lastInsertRowId
 
 getMatchById :: HasSqlite m => MatchId -> m (Maybe (Match Player))
 getMatchById matchid =
@@ -107,7 +107,7 @@ deleteMatchById matchId =
 addPlayer :: HasSqlite m => Player -> m PlayerId
 addPlayer Player{..} =
   do execute "INSERT INTO player (playerName) VALUES (?)" (Only _playerName)
-     PlayerId `liftM` lastInsertRowId'
+     PlayerId `liftM` lastInsertRowId
 
 getPlayerIdByName :: HasSqlite m => Text -> m (Maybe PlayerId)
 getPlayerIdByName name =
@@ -191,8 +191,8 @@ getLawsForPlayer playerId = do
                \ WHERE playerId = ?" (Only playerId)
   return $ Map.fromList [(k,(event,law)) | Only k :. event :. law <- xs]
 
-lastInsertRowId' :: HasSqlite m => m Int64
-lastInsertRowId' = withSqlite lastInsertRowId
+lastInsertRowId :: HasSqlite m => m Int64
+lastInsertRowId = withSqlite Sqlite.lastInsertRowId
 
 fromMaybeT :: Functor m => x -> MaybeT m x -> m x
 fromMaybeT x m = fromMaybe x <$> runMaybeT m
