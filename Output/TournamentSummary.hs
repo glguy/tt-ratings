@@ -1,5 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Output.TournamentSummaryHtml where
+module Output.TournamentSummary where
 
 import Control.Lens
 import Data.List.Split (chunksOf)
@@ -25,10 +25,11 @@ $with title <- formatTournamentTitle event
   <head>
     ^{metaTags}
     <title>#{title}
-    <link rel=stylesheet type=text/css href=common.css>
-    <link rel=stylesheet type=text/css href=results.css>
+    <link rel=stylesheet type=text/css href=/static/common.css>
+    <link rel=stylesheet type=text/css href=/static/results.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
   <body>
+    ^{navigationLinks}
     <h1>#{title}
     <div #tabs>
       <div #summary-report>

@@ -36,6 +36,7 @@ $doctype 5
           <th>Day
           <th>Active
           <th>Previous
+          <th>Details
        $forall (i,(eventId,event)) <- itoList $ Map.toList events
          <tr :odd i:.alt>
            <td>
@@ -54,4 +55,6 @@ $doctype 5
                #{show $ op EventId x}
              $nothing
                N/A
+           <td>
+             <a href=#{mkEventUrl eventId}>details
 |]

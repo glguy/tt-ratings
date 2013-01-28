@@ -1,9 +1,24 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Output.Common where
 
+import Data.Text (Text)
+import qualified Data.Text as Text
 import Text.Hamlet
-import Law
 import Control.Lens
+
+import DataStore
+import Law
+
+--------------------------------------------------------------------------------
+-- URL generators
+
+mkPlayerUrl :: PlayerId -> Text
+mkPlayerUrl (PlayerId i) = "/player/" `Text.append` Text.pack (show i)
+
+mkEventUrl :: EventId -> Text
+mkEventUrl (EventId i) = "/event/" `Text.append` Text.pack (show i)
+
+--------------------------------------------------------------------------------
 
 metaTags :: Html
 metaTags = [shamlet|
@@ -20,6 +35,8 @@ navigationLinks = [shamlet|
         <a href="/">Match Entry
       <li>
         <a href="/players">Players
+      <li>
+        <a href="/event/latest">Latest Event
       <li>
         <a href="/events">Events
       <li>

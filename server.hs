@@ -4,14 +4,14 @@
 module Main where
 
 import Control.Applicative
-import Control.Exception ()
+import Control.Concurrent.MVar
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Time
-import Data.Foldable (for_)
+import Data.Foldable (for_, traverse_)
 import Data.Traversable (for)
 import System.Locale
 import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Enc
 
 import DataStore
+import Law (lawElems)
 import Match
 import Output.Common
 import Output.Events
@@ -31,8 +32,9 @@ import Output.ExportMatches
 import Output.Formatting
 import Output.Player
 import Output.Players
+import Output.TournamentSummary
 import Player
-import Law (lawElems)
+import TournamentCompiler
 
 import Snap
 import Snap.Util.FileServe
@@ -40,7 +42,10 @@ import Snap.Snaplet.SqliteSimple
 
 data App = App
   { _db :: Snaplet Sqlite
+  , _tournamentReports :: MVar (Map EventId Html)
   }
+
+data RunState = Running | Rerun | Idle
 
 makeClassy ''App
 -- class HasApp t where
@@ -51,7 +56,9 @@ instance HasApp app => HasSqlite (Handler b app) where getSqliteState = with db 
 
 appInit :: SnapletInit App App
 appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
-  d <- embedSnaplet "db" db sqliteInit
+  _db <- embedSnaplet "db" db sqliteInit
+  _tournamentReports <- liftIO $ newMVar Map.empty
+
   addRoutes
      [ ("match", method POST matchPostHandler)
      , ("matchop", method POST matchopPostHandler)
@@ -59,6 +66,8 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
      , ("exportmatches", exportMatchesHandler)
      , ("events", method GET eventsGetHandler)
      , ("events", method POST eventsPostHandler)
+     , ("event/latest", method GET latestEventHandler)
+     , ("event/:eventId", method GET eventHandler)
      , ("player/:playerId", playerHandler)
      , ("players", playersHandler)
      , ("curves.js", curvesHandler)
@@ -66,7 +75,7 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
      , ("", defaultHandler)
      ]
 
-  return $ App { _db = d }
+  return App { .. }
 
 main :: IO ()
 main = serveSnaplet defaultConfig appInit
@@ -77,7 +86,7 @@ matchPostHandler = do
   loser  <- getParam' "loser"
   Just winnerId <- getPlayerIdByName winner
   Just loserId  <- getPlayerIdByName loser
-  _matchId <- saveMatch winnerId loserId
+  saveMatch winnerId loserId
   liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
   redirect "/"
 
@@ -86,13 +95,23 @@ matchopPostHandler = do
   action  <- getParam' "action"
   matchId <- MatchId <$> getNumParam "matchId"
   case action of
-      "delete"       -> deleteMatchById matchId
+      "delete"       -> do deleteMatchById matchId
+                           traverse_ (rerunEvent True) =<< getCurrentEventId
+                           return ()
       "duplicate"  ->
         do mbMatch <- getMatchById' matchId
            for_ mbMatch $ \match ->
              saveMatch (view matchWinner match) (view matchLoser match)
       _ -> return ()
   redirect "/"
+
+rerunEvent :: Bool -> EventId -> Handler App App Html
+rerunEvent changed eventId = do
+  (event,report) <- generateTournamentSummary changed eventId
+  var <- use tournamentReports
+  liftIO $ modifyMVar var $ \cache ->
+   let html = tournamentHtml event report
+   in  return (cache & at eventId ?~ html, html)
 
 exportPlayersHandler :: Handler App App ()
 exportPlayersHandler = do
@@ -118,6 +137,21 @@ eventsPostHandler = do
       "Delete" -> deleteEventById eventId
       _        -> fail "Unknown operation"
   redirect "/events"
+
+latestEventHandler :: Handler App App ()
+latestEventHandler = do
+  Just eventId <- getLatestEventId
+  redirect $ Enc.encodeUtf8 $ mkEventUrl eventId
+
+eventHandler :: Handler App App ()
+eventHandler = do
+  eventId <- EventId <$> getNumParam "eventId"
+  var     <- use tournamentReports
+  cache   <- liftIO $ readMVar var
+  html    <- case view (at eventId) cache of
+    Just html   -> return html
+    Nothing     -> rerunEvent False eventId
+  sendHtml html
 
 playerHandler :: Handler App App ()
 playerHandler = do
@@ -163,14 +197,16 @@ mainPage =
      let Just namedMatches = (each . traverse) (flip Map.lookup ps) ms
      return $ thePage (Map.elems ps) $ formatMatches tz (localDay t) namedMatches
 
-saveMatch :: (Functor m, HasSqlite m, MonadIO m) => PlayerId -> PlayerId -> m MatchId
+saveMatch :: PlayerId -> PlayerId -> Handler App App ()
 saveMatch _matchWinner _matchLoser = do
   _matchTime <- liftIO getCurrentTime
   eventId <- do mb <- getCurrentEventId
                 case mb of
                   Just eventId -> return eventId
                   Nothing      -> fail "No event is currently open"
-  addMatchToEvent Match{..} eventId
+  _ <- addMatchToEvent Match{..} eventId
+  _ <- rerunEvent True eventId
+  return ()
 
 sendJson :: (Aeson.ToJSON a, MonadSnap m) => a -> m ()
 sendJson x = do
@@ -201,7 +237,10 @@ getNumParam name = do
        | otherwise      -> fail "bad number"
      Left err -> fail err
 
+
 --------------------------------------------------------------------------------
+
+
 
 formatMatch :: TimeZone -> Int -> MatchId -> Match Player -> Html
 formatMatch tz i (MatchId mid) match = [shamlet|

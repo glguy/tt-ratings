@@ -1,40 +1,17 @@
 {-# LANGUAGE RecordWildCards #-}
-module Main where
+module TournamentCompiler where
 
 import Control.Applicative
 import Control.Lens
-import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.Map (Map)
-import Control.Concurrent.MVar (newMVar)
-import System.Environment
-import Tournament
-import Output.TournamentSummaryHtml
+import Snap.Snaplet.SqliteSimple (HasSqlite)
 import qualified Data.Map as Map
-import Text.Blaze.Html.Renderer.String (renderHtml)
 
-import Database.SQLite.Simple (withConnection)
-import Snap.Snaplet.SqliteSimple (HasSqlite, Sqlite(Sqlite))
-
+import DataStore
 import Event
 import Player
-import DataStore
-
-data Config = Config
-  { currentEventId :: EventId
-  , resultsFn :: FilePath
-  }
-
-runDb :: ReaderT Sqlite IO a -> IO a
-runDb m = withConnection "pingpong.db" $ \db ->
-  do v <- newMVar db
-     runReaderT m $ Sqlite v
-
-main :: IO ()
-main = do
-  config <- liftIO getConfig
-  (event, report) <- runDb $ generateTournamentSummary True $ currentEventId config
-  writeFile (resultsFn config) $ renderHtml $ tournamentHtml event report
+import Tournament
 
 generateTournamentSummary :: (Applicative m, HasSqlite m) => Bool -> EventId ->
   m (Event EventId, Map Player (PlayerSummary Player))
@@ -56,21 +33,12 @@ generateTournamentSummary save eventId = do
 
   namedResults <- nameResults playerMap results
 
-  when save $ do
+  when (save && view eventActive event) $ do
     clearLawsForEvent eventId
     ifor_ newLawsFromEvent $ \playerId (_day,law) ->
       addLaw playerId eventId law
 
   return (event, namedResults)
-
-getConfig :: IO Config
-getConfig = do
-  args <- getArgs
-  case args of
-    [currentEventStr, resultsFn] ->
-      do let currentEventId = EventId $ read currentEventStr
-         return Config {..}
-    _ -> fail "usage: tt-ratings EVENTID RESULTS"
 
 nameResults :: Monad m => (Ord k, Ord v) => Map k v ->
   Map k (PlayerSummary k) -> m (Map v (PlayerSummary v))
