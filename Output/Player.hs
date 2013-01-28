@@ -47,7 +47,8 @@ $doctype 5
          <th>Graph
        $forall (i,(eventId,(event,law))) <- itoList rows
          <tr :odd i:.alt>
-           <td>#{view eventName event}
+           <td>
+             <a href=#{mkEventUrl eventId}>#{view eventName event}
            <td>#{formatShortDay $ view eventDay event}
            <td .num>#{showRound $ lawMean law}
            <td .num>#{showRound $ lawStddev law}

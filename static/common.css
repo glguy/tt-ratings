@@ -1,13 +1,18 @@
 body {
-  background-color: rgb(220,230,255);
+  background-color: #dddddd;
+  margin: 0;
+  padding: 0;
 }
 
 h1 {
   border-bottom: 1px solid black;
+  padding-left: 1em;
 }
 
 table.data {
   border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 table.data th {
@@ -35,6 +40,18 @@ table.data tr.alt td {
 
 div#navigation {
   text-align: center;
+  background-color: #222222;
+  padding: 0.5em;
+}
+
+div#navigation a {
+  text-decoration: none;
+  color: white;
+  font-family: sans-serif;
+}
+
+div#navigation a:hover {
+  color: #888888;
 }
 
 div#navigation ul {
@@ -52,4 +69,17 @@ td.num {
 div#errorMessage {
   color: #cc0000;
   font-size: larger;
+}
+
+table.data a {
+  text-decoration: none;
+  color: black;
+}
+
+table.data a:hover {
+  text-decoration: underline;
+}
+
+.quiet {
+  color: #bbbbbb;
 }

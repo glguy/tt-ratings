@@ -19,7 +19,7 @@ $doctype 5
   <head>
     ^{metaTags}
     <title>Events
-    <link rel=stylesheet href=static/common.css>
+    <link rel=stylesheet href=/static/common.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
   <body>
     ^{navigationLinks}
@@ -36,25 +36,22 @@ $doctype 5
           <th>Day
           <th>Active
           <th>Previous
-          <th>Details
        $forall (i,(eventId,event)) <- itoList $ Map.toList events
          <tr :odd i:.alt>
            <td>
              $with str <- show $ op EventId eventId
                <input #eventChoice#{i} type=radio name=eventId value=#{str}>
                <label for=eventChoice#{i}>#{str}
-           <td>#{view eventName event}
-           <td>#{formatShortDay $ view eventDay event}
            <td>
-             $if view eventActive event
-                 Open
-             $else
-                 Closed
+             <a href=#{mkEventUrl eventId}>#{view eventName event}
+           <td>#{formatShortDay $ view eventDay event}
+           $if view eventActive event
+             <td>Open
+           $else
+             <td .quiet>Closed
            <td>
              $maybe x <- view eventPrevious event
                #{show $ op EventId x}
              $nothing
                N/A
-           <td>
-             <a href=#{mkEventUrl eventId}>details
 |]

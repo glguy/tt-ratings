@@ -40,11 +40,11 @@ $doctype 5
          <th>Metric
          <th>Last played
          <th>Graph
-         <th>Details
       <tbody>
         $forall (i,(playerId,(player,lastday,law))) <- itoList rows
           <tr :odd i:.alt>
-            <td .str>#{view playerName player}
+            <td .str>
+               <a href=#{mkPlayerUrl playerId}>#{view playerName player}
             <td .num>#{showRound $ lawMean law}
             <td .num>#{showRound $ lawStddev law}
             <td .num>#{showRound $ lawScore law}
@@ -55,8 +55,6 @@ $doctype 5
                 #{formatShortDay lastday}
             <td>
               <div .bargraph #graph#{i}>
-            <td>
-              <a href="/player/#{show $ op PlayerId playerId}">details
   |]
   where
   title       = "Player List - " ++ formatLongDay day

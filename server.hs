@@ -303,6 +303,7 @@ thePage err w l ps table = [shamlet|
     <link rel=stylesheet type=text/css href=static/common.css>
     <link rel=stylesheet type=text/css href=static/style.css>
   <body>
+    ^{navigationLinks}
     <div .entry>
       <form action="/match" method=POST>
         <label for=winner>Winner:
@@ -315,6 +316,5 @@ thePage err w l ps table = [shamlet|
         <input type=submit #submit value=Record>
     $maybe errMsg <- err
       <div #errorMessage>#{errMsg}
-    ^{navigationLinks}
     ^{table}
 |]
