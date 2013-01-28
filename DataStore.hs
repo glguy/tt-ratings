@@ -145,16 +145,19 @@ getActivePlayerIds =
                            \ WHERE playerId IN (SELECT winnerId FROM match)\
                            \    OR playerId IN (SELECT loserId FROM match)"
 
-getLawsForEvent :: (Applicative m, HasSqlite m) => EventId -> m (Map PlayerId (Day, Law))
-getLawsForEvent topEventId = do
+getLawsForEvent :: (Applicative m, HasSqlite m) => Bool -> EventId -> m (Map PlayerId (Day, Law))
+getLawsForEvent backOne topEventId = do
   playerIds <- getActivePlayerIds
 
   now <- liftIO $ zonedTimeToLocalTime <$> getZonedTime
   let today = localDay now
 
-  fmap Map.fromList $ for playerIds $ \playerId -> do
-    law <- fromMaybeT (today, defaultLaw) $ search playerId =<< parentEvent topEventId
-    return (playerId, law)
+
+  fmap Map.fromList $
+    for playerIds $ \playerId -> fromMaybeT (playerId, (today, defaultLaw)) $
+      do startingPoint <- if backOne then parentEvent topEventId else return topEventId
+         (day,law) <- search playerId startingPoint
+         return (playerId, (day,law))
   where
 
   parentEvent :: HasSqlite m => EventId -> MaybeT m EventId

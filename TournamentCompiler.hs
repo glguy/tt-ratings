@@ -18,7 +18,7 @@ generateTournamentSummary :: (Applicative m, HasSqlite m) => Bool -> EventId ->
 generateTournamentSummary save eventId = do
   playerMap    <- getPlayers
   Just event   <- getEventById eventId
-  previousLaws <- getLawsForEvent eventId
+  previousLaws <- getLawsForEvent True eventId
   matches      <- fmap Map.elems $ getMatchesByEventId eventId
 
   let today           = view eventDay event

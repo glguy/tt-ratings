@@ -178,7 +178,7 @@ playersHandler = do
   Just eventId <- getLatestEventId
   players  <- getPlayers
   today    <- localDay <$> getLocalTime
-  eventMap <- getLawsForEvent eventId
+  eventMap <- getLawsForEvent False eventId
   let Just eventMap' = ifor eventMap $ \i (a,b) ->
                              do player <- Map.lookup i players
                                 return (player,a,b)
@@ -188,7 +188,7 @@ curvesHandler :: Handler App App ()
 curvesHandler = do
   Just eventId <- getLatestEventId
   players      <- getPlayers
-  eventMap     <- getLawsForEvent eventId
+  eventMap     <- getLawsForEvent False eventId
   let Just curveData =
          for (Map.toList eventMap) $ \(i,(_,law)) ->
            do player <- Map.lookup i players
