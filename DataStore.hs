@@ -149,8 +149,7 @@ getLawsForEvent :: (Applicative m, HasSqlite m) => Bool -> EventId -> m (Map Pla
 getLawsForEvent backOne topEventId = do
   playerIds <- getActivePlayerIds
 
-  now <- liftIO $ zonedTimeToLocalTime <$> getZonedTime
-  let today = localDay now
+  today <- liftIO $ localDay . zonedTimeToLocalTime <$> getZonedTime
 
 
   fmap Map.fromList $
