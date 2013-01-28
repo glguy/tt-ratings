@@ -22,4 +22,4 @@ executable tt-ratings
 executable server
   main-is:             server.hs
   ghc-options:         -Wall
-  build-depends:        base, time, directory, filepath, blaze-html, hamlet, containers, lens, array, split, statistics, text, sqlite-simple, transformers, mtl, old-locale, snaplet-sqlite-simple, snap-server, snap-core, snap
+  build-depends:        base, time, directory, filepath, blaze-html, hamlet, containers, lens, array, split, statistics, text, sqlite-simple, transformers, mtl, old-locale, snaplet-sqlite-simple, snap-server, snap-core, snap, aeson

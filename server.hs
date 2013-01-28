@@ -18,6 +18,7 @@ import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
 import Text.Hamlet (shamlet, Html)
 import Data.Text.Read
 import Data.Text (Text)
+import qualified Data.Aeson as Aeson
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Enc
@@ -28,10 +29,10 @@ import Output.Common
 import Output.Events
 import Output.ExportMatches
 import Output.Formatting
-import Output.GraphLawCurves (generateFlotData)
 import Output.Player
 import Output.Players
 import Player
+import Law (lawElems)
 
 import Snap
 import Snap.Util.FileServe
@@ -97,14 +98,10 @@ exportPlayersHandler :: Handler App App ()
 exportPlayersHandler = do
   ms <- getPlayers
   let xs = [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
-  modifyResponse $ setContentType "text/plain; charset=utf-8"
-  writeText $ Text.pack $ show xs
+  sendJson xs
 
 exportMatchesHandler :: Handler App App ()
-exportMatchesHandler = do
-  ms <- exportMatches
-  modifyResponse $ setContentType "text/plain; charset=utf-8"
-  writeText $ Text.pack $ show ms
+exportMatchesHandler = sendJson =<< exportMatches
 
 eventsGetHandler :: Handler App App ()
 eventsGetHandler = do
@@ -144,13 +141,11 @@ curvesHandler = do
   Just eventId <- getLatestEventId
   players      <- getPlayers
   eventMap     <- getLawsForEvent eventId
-  let Just eventMap' =
+  let Just curveData =
          for (Map.toList eventMap) $ \(i,(_,law)) ->
            do player <- Map.lookup i players
-              return (player,law)
-
-  modifyResponse $ setContentType "application/javascript; charset=utf8"
-  writeText $ Text.pack $ generateFlotData $ Map.fromList eventMap'
+              return (view playerName player, lawElems law)
+  sendJson curveData
 
 
 defaultHandler :: Handler App App ()
@@ -176,6 +171,11 @@ saveMatch _matchWinner _matchLoser = do
                   Just eventId -> return eventId
                   Nothing      -> fail "No event is currently open"
   addMatchToEvent Match{..} eventId
+
+sendJson :: (Aeson.ToJSON a, MonadSnap m) => a -> m ()
+sendJson x = do
+  modifyResponse $ setContentType "application/json; charset=utf-8"
+  writeLBS $ Aeson.encode x
 
 sendHtml :: MonadSnap m => Html -> m ()
 sendHtml html = do
