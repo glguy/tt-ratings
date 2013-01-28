@@ -25,6 +25,7 @@ metaTags = [shamlet|
   <meta charset="UTF-8" />
   <meta name="google" content="notranslate">
   <meta http-equiv="Content-Language" content="en" />
+  <link rel="shortcut icon" href="/favicon.ico" />
 |]
 
 navigationLinks :: Html

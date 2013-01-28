@@ -76,6 +76,7 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
      , ("players", playersHandler)
      , ("curves.js", curvesHandler)
      , ("static", serveDirectory "static")
+     , ("favicon.ico", serveFile "static/ping-pong.png")
      , ("", defaultHandler)
      ]
 
