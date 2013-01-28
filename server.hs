@@ -1,12 +1,16 @@
 {-# LANGUAGE RecordWildCards, QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Main where
 
 import Control.Applicative
 import Control.Concurrent.MVar
+import Control.Exception (Exception)
+import Data.Typeable (Typeable)
 import Control.Lens
 import Control.Monad.IO.Class
+import Control.Monad.CatchIO (catch, throw)
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
@@ -80,15 +84,25 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
 main :: IO ()
 main = serveSnaplet defaultConfig appInit
 
+data UnknownPlayer = UnknownWinner | UnknownLoser deriving (Show, Typeable)
+instance Exception UnknownPlayer
+
 matchPostHandler :: Handler App App ()
 matchPostHandler = do
   winner <- getParam' "winner"
   loser  <- getParam' "loser"
-  Just winnerId <- getPlayerIdByName winner
-  Just loserId  <- getPlayerIdByName loser
-  saveMatch winnerId loserId
-  liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
-  redirect "/"
+  do winnerId <- getPlayerIdByName winner `orElse` UnknownWinner
+     loserId  <- getPlayerIdByName loser  `orElse` UnknownLoser
+     saveMatch winnerId loserId
+     liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
+     redirect "/"
+   `catch` \e ->
+     let msg = case e of
+           UnknownWinner -> "Unknown winner"
+           UnknownLoser  -> "Unknown loser"
+     in sendHtml =<< mainPage (Just msg) winner loser
+  where
+  m `orElse` e = maybe (throw e) return =<< m
 
 matchopPostHandler :: Handler App App ()
 matchopPostHandler = do
@@ -183,10 +197,14 @@ curvesHandler = do
 
 
 defaultHandler :: Handler App App ()
-defaultHandler = sendHtml =<< mainPage
+defaultHandler = sendHtml =<< mainPage Nothing "" ""
 
-mainPage :: Handler App App Html
-mainPage =
+mainPage ::
+  Maybe Text {- ^ error message -} ->
+  Text {- ^ initial winner text -} ->
+  Text {- ^ initial loser  text -} ->
+  Handler App App Html
+mainPage err w l =
   do t  <- getLocalTime
      tz <- liftIO getCurrentTimeZone
      mb <- getCurrentEventId
@@ -195,7 +213,7 @@ mainPage =
              Nothing            -> return Map.empty
              Just eventId       -> getMatchesByEventId eventId
      let Just namedMatches = (each . traverse) (flip Map.lookup ps) ms
-     return $ thePage (Map.elems ps) $ formatMatches tz (localDay t) namedMatches
+     return $ thePage err w l (Map.elems ps) $ formatMatches tz (localDay t) namedMatches
 
 saveMatch :: PlayerId -> PlayerId -> Handler App App ()
 saveMatch _matchWinner _matchLoser = do
@@ -260,7 +278,9 @@ formatMatch tz i (MatchId mid) match = [shamlet|
   l = view (matchLoser  . playerName) match
 
 formatMatches :: TimeZone -> Day -> Map MatchId (Match Player) -> Html
-formatMatches tz d xs = [shamlet|
+formatMatches tz d xs
+  | Map.null xs = return ()
+  | otherwise = [shamlet|
 <h2>Matches for #{formatLongDay d}
   <table>
     <tr>
@@ -274,8 +294,8 @@ formatMatches tz d xs = [shamlet|
   where
   byTime = comparing (view matchTime . snd)
 
-thePage :: [Player] -> Html -> Html
-thePage ps table = [shamlet|
+thePage :: Maybe Text -> Text -> Text -> [Player] -> Html -> Html
+thePage err w l ps table = [shamlet|
 <html lang=en>
   <head>
     ^{metaTags}
@@ -286,13 +306,15 @@ thePage ps table = [shamlet|
     <div .entry>
       <form action="/match" method=POST>
         <label for=winner>Winner:
-        <input autocomplete=off list=players name=winner #winner>
+        <input autocomplete=off list=players name=winner #winner value=#{w}>
         <label for=loser>Loser:
-        <input autocomplete=off list=players name=loser  #loser>
+        <input autocomplete=off list=players name=loser  #loser value=#{l}>
         <datalist #players>
           $forall p <- ps
             <option value=#{view playerName p}>
         <input type=submit #submit value=Record>
+    $maybe errMsg <- err
+      <div #errorMessage>#{errMsg}
     ^{navigationLinks}
     ^{table}
 |]

@@ -49,3 +49,7 @@ td.num {
   text-align: right;
 }
 
+div#errorMessage {
+  color: #cc0000;
+  font-size: larger;
+}
