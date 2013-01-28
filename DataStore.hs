@@ -170,7 +170,7 @@ getLawsForEvent backOne topEventId = do
   search playerId eventId =
     do laws <- query "SELECT eventDay,lawData\
                              \ FROM law\
-                             \ JOIN event USING (eventId)\
+                             \ NATURAL JOIN event \
                              \ WHERE playerId = ? AND eventId = ?"
                              (playerId, eventId)
        case laws of
