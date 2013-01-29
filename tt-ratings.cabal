@@ -17,4 +17,26 @@ cabal-version:       >=1.8
 executable tt-server
   main-is:             server.hs
   ghc-options:         -Wall
-  build-depends:        base, time, directory, filepath, blaze-html, hamlet, containers, lens, array, split, statistics, text, sqlite-simple, transformers, mtl, old-locale, snaplet-sqlite-simple, snap-server, snap-core, snap, aeson, bytestring, MonadCatchIO-transformers
+  build-depends:       base,
+                       time,
+                       directory,
+                       filepath,
+                       blaze-html,
+                       hamlet >= 1.1.4,
+                       containers,
+                       lens   >= 3.8,
+                       array,
+                       split,
+                       statistics,
+                       text,
+                       sqlite-simple,
+                       transformers,
+                       mtl,
+                       old-locale,
+                       snaplet-sqlite-simple,
+                       snap-server,
+                       snap-core,
+                       snap >= 0.11,
+                       aeson,
+                       bytestring,
+                       MonadCatchIO-transformers
