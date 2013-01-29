@@ -38,5 +38,4 @@ executable tt-server
                        snap-core,
                        snap >= 0.11,
                        aeson,
-                       bytestring,
-                       MonadCatchIO-transformers
+                       bytestring

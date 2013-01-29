@@ -1,16 +1,12 @@
 {-# LANGUAGE RecordWildCards, QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Main where
 
 import Control.Applicative
 import Control.Concurrent.MVar
-import Control.Exception (Exception)
-import Data.Typeable (Typeable)
 import Control.Lens
 import Control.Monad.IO.Class
-import Control.Monad.CatchIO (catch, throw)
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
@@ -85,25 +81,21 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
 main :: IO ()
 main = serveSnaplet defaultConfig appInit
 
-data UnknownPlayer = UnknownWinner | UnknownLoser deriving (Show, Typeable)
-instance Exception UnknownPlayer
-
 matchPostHandler :: Handler App App ()
 matchPostHandler = do
   winner <- getParam' "winner"
   loser  <- getParam' "loser"
-  do winnerId <- getPlayerIdByName winner `orElse` UnknownWinner
-     loserId  <- getPlayerIdByName loser  `orElse` UnknownLoser
-     saveMatch winnerId loserId
-     liftIO $ putStrLn $ "Saving " ++ show (winner,loser)
-     redirect "/"
-   `catch` \e ->
-     let msg = case e of
-           UnknownWinner -> "Unknown winner"
-           UnknownLoser  -> "Unknown loser"
-     in sendHtml =<< mainPage (Just msg) winner loser
-  where
-  m `orElse` e = maybe (throw e) return =<< m
+
+  let m `check` e = maybe failure return =<< m
+        where
+        failure = do
+            sendHtml   =<< mainPage (Just e) winner loser
+            finishWith =<< getResponse
+
+  winnerId <- getPlayerIdByName winner `check` "Unknown winner"
+  loserId  <- getPlayerIdByName loser  `check` "Unknown loser"
+  saveMatch winnerId loserId
+  redirect "/"
 
 matchopPostHandler :: Handler App App ()
 matchopPostHandler = do
