@@ -39,11 +39,13 @@
 
           $.plot($("#graph"), items, { grid: { hoverable: true }, yaxis: {show: false}, xaxis: { min: 1200, max: 2700 } } );
 
+          var previousSeries = null;
           var previousPoint = null;
           $("#graph").bind("plothover", function(event, pos, item) {
             if (item) {
-              if (previousPoint != item.dataIndex) {
+              if (previousPoint != item.dataIndex || previousSeries != item.series) {
                 previousPoint = item.dataIndex;
+                previousSeries = item.series;
                 $("#tooltip").remove();
                 showTooltip(item.pageX, item.pageY, item.series.label);
               }
