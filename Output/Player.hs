@@ -40,7 +40,6 @@ $doctype 5
          <th colspan=2>Event
          <th colspan=3>Rating
        <tr>
-         <th>Name
          <th>Date
          <th>μ
          <th>σ
@@ -48,8 +47,8 @@ $doctype 5
        $forall (i,(eventId,(event,law))) <- itoList rows
          <tr :odd i:.alt>
            <td>
-             <a href=#{mkEventUrl eventId}>#{view eventName event}
-           <td>#{formatShortDay $ view eventDay event}
+             <a href=#{mkEventUrl eventId}>
+               #{formatShortDay $ view eventDay event}
            <td .num>#{showRound $ lawMean law}
            <td .num>#{showRound $ lawStddev law}
            <td>

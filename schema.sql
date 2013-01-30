@@ -2,16 +2,12 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE player (
   playerId INTEGER PRIMARY KEY AUTOINCREMENT,
-  playerName TEXT UNIQUE
+  playerName TEXT NOT NULL UNIQUE
   );
 
 CREATE TABLE event (
   eventId         INTEGER PRIMARY KEY AUTOINCREMENT,
-  previousEventId INTEGER,
-  eventName       TEXT    NOT NULL,
-  eventDay        TEXT    NOT NULL,
-  eventActive     INTEGER NOT NULL,
-  FOREIGN KEY (previousEventId) REFERENCES event
+  eventDay        TEXT NOT NULL UNIQUE
   );
 
 CREATE TABLE law (

@@ -6,11 +6,8 @@ import Control.Lens
 import Data.Time.Calendar
 import Data.Text
 
-data Event event = Event
-  { _eventName :: Text
-  , _eventDay :: Day
-  , _eventActive :: Bool
-  , _eventPrevious :: Maybe event
+data Event = Event
+  { _eventDay :: Day
   }
   deriving (Show, Ord, Eq)
 

@@ -7,12 +7,12 @@ import Control.Lens
 import qualified Data.Map as Map
 import Data.Map (Map)
 
+import DataStore (EventId)
 import Event
-import DataStore (EventId(EventId))
 import Output.Formatting
 import Output.Common
 
-eventsPage :: Map EventId (Event EventId) -> Html
+eventsPage :: Map EventId Event -> Html
 eventsPage events = [shamlet|
 $doctype 5
 <html>
@@ -24,34 +24,12 @@ $doctype 5
   <body>
     ^{navigationLinks}
     <h1>Events
-    <form action="/events" method="post">
-      <div>
-        <input type=submit name=action value=Open>
-        <input type=submit name=action value=Close>
-        <input type=submit name=action value=Delete>
-      <table .data>
-        <tr>
-          <th>#
-          <th>Name
-          <th>Day
-          <th>Active
-          <th>Previous
-       $forall (i,(eventId,event)) <- itoList $ Map.toList events
-         <tr :odd i:.alt>
-           <td>
-             $with str <- show $ op EventId eventId
-               <input #eventChoice#{i} type=radio name=eventId value=#{str}>
-               <label for=eventChoice#{i}>#{str}
-           <td>
-             <a href=#{mkEventUrl eventId}>#{view eventName event}
-           <td>#{formatShortDay $ view eventDay event}
-           $if view eventActive event
-             <td>Open
-           $else
-             <td .quiet>Closed
-           <td>
-             $maybe x <- view eventPrevious event
-               #{show $ op EventId x}
-             $nothing
-               N/A
+    <table .data>
+      <tr>
+        <th>Day
+      $forall (i,(eventId,event)) <- itoList $ Map.toList events
+        <tr :odd i:.alt>
+          <td>
+            <a href=#{mkEventUrl eventId}>
+              #{formatShortDay $ view eventDay event}
 |]

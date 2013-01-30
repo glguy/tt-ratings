@@ -4,7 +4,6 @@ module Output.TournamentSummary where
 import Control.Lens
 import Data.List.Split (chunksOf)
 import Data.Map (Map)
-import qualified Data.Text as Text
 import Event
 import Law
 import Output.Common
@@ -17,7 +16,7 @@ import qualified Data.Map as Map
 tournamentColumns :: Int
 tournamentColumns = 2
 
-tournamentHtml :: Event a -> Map Player (PlayerSummary Player) -> Html
+tournamentHtml :: Event -> Map Player (PlayerSummary Player) -> Html
 tournamentHtml event results = [shamlet|
 $doctype 5
 $with title <- formatTournamentTitle event
@@ -102,11 +101,9 @@ $with title <- formatTournamentTitle event
 isZero :: Int -> Bool
 isZero z = z == 0
 
-formatTournamentTitle :: Event a -> String
+formatTournamentTitle :: Event -> String
 formatTournamentTitle event
   = "Tournament Results - "
- ++ Text.unpack (view eventName event)
- ++ " - "
  ++ formatLongDay (view eventDay event)
 
 formatDelta :: Double -> Html

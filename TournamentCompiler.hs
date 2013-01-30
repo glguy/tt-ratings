@@ -14,7 +14,7 @@ import Player
 import Tournament
 
 generateTournamentSummary :: (Applicative m, HasSqlite m) => Bool -> EventId ->
-  m (Event EventId, Map Player (PlayerSummary Player))
+  m (Event, Map Player (PlayerSummary Player))
 generateTournamentSummary save eventId = do
   playerMap    <- getPlayers
   Just event   <- getEventById eventId
@@ -33,7 +33,7 @@ generateTournamentSummary save eventId = do
 
   namedResults <- nameResults playerMap results
 
-  when (save && view eventActive event) $ do
+  when save $ do
     clearLawsForEvent eventId
     ifor_ newLawsFromEvent $ \playerId (_day,law) ->
       addLaw playerId eventId law

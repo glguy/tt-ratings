@@ -11,7 +11,7 @@ import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Time
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (for_)
 import Data.Traversable (for)
 import System.Locale
 import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Enc
 
 import DataStore
+import Event
 import Law (lawElems)
 import Match
 import Output.Common
@@ -60,20 +61,19 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
   _tournamentReports <- liftIO $ newMVar Map.empty
 
   addRoutes
-     [ ("match", method POST matchPostHandler)
-     , ("matchop", method POST matchopPostHandler)
-     , ("exportplayers", exportPlayersHandler)
-     , ("exportmatches", exportMatchesHandler)
-     , ("events", method GET eventsGetHandler)
-     , ("events", method POST eventsPostHandler)
-     , ("event/latest", method GET latestEventHandler)
-     , ("event/:eventId", method GET eventHandler)
-     , ("player/:playerId", playerHandler)
-     , ("players", playersHandler)
-     , ("curves.js", curvesHandler)
-     , ("static", serveDirectory "static")
-     , ("favicon.ico", serveFile "static/ping-pong.png")
-     , ("", defaultHandler)
+     [ ("match",                method POST matchPostHandler)
+     , ("matchop",              method POST matchopPostHandler)
+     , ("exportplayers",        exportPlayersHandler)
+     , ("exportmatches",        exportMatchesHandler)
+     , ("events",               eventsGetHandler)
+     , ("event/latest",         method GET latestEventHandler)
+     , ("event/:eventId",       method GET eventHandler)
+     , ("player/:playerId",     playerHandler)
+     , ("players",              playersHandler)
+     , ("curves.js",            curvesHandler)
+     , ("static",               serveDirectory "static")
+     , ("favicon.ico",          serveFile "static/ping-pong.png")
+     , ("",                     defaultHandler)
      ]
 
   return App { .. }
@@ -102,9 +102,15 @@ matchopPostHandler = do
   action  <- getParam' "action"
   matchId <- MatchId <$> getNumParam "matchId"
   case action of
-      "delete"       -> do deleteMatchById matchId
-                           traverse_ (rerunEvent True) =<< getCurrentEventId
-                           return ()
+      "delete" ->
+        do Just eventId <- getEventIdByMatchId matchId
+           Just event   <- getEventById eventId
+           today        <- localDay <$> getLocalTime
+           unless (view eventDay event == today)
+                  (fail "This match can not be deleted")
+           deleteMatchById matchId
+           _ <- rerunEvent True eventId
+           return ()
       "duplicate"  ->
         do mbMatch <- getMatchById' matchId
            for_ mbMatch $ \match ->
@@ -115,10 +121,10 @@ matchopPostHandler = do
 rerunEvent :: Bool -> EventId -> Handler App App Html
 rerunEvent changed eventId = do
   (event,report) <- generateTournamentSummary changed eventId
+  let html = tournamentHtml event report
   var <- use tournamentReports
-  liftIO $ modifyMVar var $ \cache ->
-   let html = tournamentHtml event report
-   in  return (cache & at eventId ?~ html, html)
+  liftIO $ modifyMVar_ var $ \cache -> return $ cache & at eventId ?~ html
+  return html
 
 exportPlayersHandler :: Handler App App ()
 exportPlayersHandler = do
@@ -134,20 +140,9 @@ eventsGetHandler = do
   events <- getEvents
   sendHtml $ eventsPage events
 
-eventsPostHandler :: Handler App App ()
-eventsPostHandler = do
-  action <- getParam' "action"
-  eventId <- EventId <$> getNumParam "eventId"
-  case action of
-      "Open"   -> setEventActive eventId True
-      "Close"  -> setEventActive eventId False
-      "Delete" -> deleteEventById eventId
-      _        -> fail "Unknown operation"
-  redirect "/events"
-
 latestEventHandler :: Handler App App ()
 latestEventHandler = do
-  Just eventId <- getLatestEventId
+  eventId <- getLatestEventId
   redirect $ Enc.encodeUtf8 $ mkEventUrl eventId
 
 eventHandler :: Handler App App ()
@@ -168,7 +163,7 @@ playerHandler = do
 
 playersHandler :: Handler App App ()
 playersHandler = do
-  Just eventId <- getLatestEventId
+  eventId <- getLatestEventId
   players  <- getPlayers
   today    <- localDay <$> getLocalTime
   eventMap <- getLawsForEvent False eventId
@@ -179,7 +174,7 @@ playersHandler = do
 
 curvesHandler :: Handler App App ()
 curvesHandler = do
-  Just eventId <- getLatestEventId
+  eventId <- getLatestEventId
   players      <- getPlayers
   eventMap     <- getLawsForEvent False eventId
   let Just curveData =
@@ -198,23 +193,30 @@ mainPage ::
   Text {- ^ initial loser  text -} ->
   Handler App App Html
 mainPage err w l =
-  do t  <- getLocalTime
-     tz <- liftIO getCurrentTimeZone
-     mb <- getCurrentEventId
+  do now <- liftIO getZonedTime
+     let today = localDay (zonedTimeToLocalTime now)
+         tz    = zonedTimeZone now
+     mb <- getEventIdByDay today
      ps <- getPlayers
      ms <- case mb of
              Nothing            -> return Map.empty
              Just eventId       -> getMatchesByEventId eventId
      let Just namedMatches = (each . traverse) (flip Map.lookup ps) ms
-     return $ thePage err w l (Map.elems ps) $ formatMatches tz (localDay t) namedMatches
+     return $ thePage err w l (Map.elems ps)
+            $ formatMatches tz today namedMatches
 
 saveMatch :: PlayerId -> PlayerId -> Handler App App ()
 saveMatch _matchWinner _matchLoser = do
   _matchTime <- liftIO getCurrentTime
-  eventId <- do mb <- getCurrentEventId
-                case mb of
-                  Just eventId -> return eventId
-                  Nothing      -> fail "No event is currently open"
+  today <- localDay . zonedTimeToLocalTime
+       <$> liftIO (utcToLocalZonedTime _matchTime)
+
+  eventId <- do
+    mb <- getEventIdByDay today
+    case mb of
+      Just eventId      -> return eventId
+      Nothing           -> addEvent Event { _eventDay = today }
+
   _ <- addMatchToEvent Match{..} eventId
   _ <- rerunEvent True eventId
   return ()
