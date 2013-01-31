@@ -6,7 +6,6 @@ import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Time.Calendar
-import Text.Blaze.Html (preEscapedToHtml)
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
 
@@ -23,11 +22,11 @@ $doctype 5
   <head>
     ^{metaTags}
     <title>#{title}
-    <link rel=stylesheet href=static/common.css>
-    <link rel=stylesheet href=static/ratings.css>
+    <link rel=stylesheet href=/static/common.css>
+    <link rel=stylesheet href=/static/ratings.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
-    <script language=javascript src=static/jquery.flot.js>
-    <script language=javascript>#{preEscapedToHtml $ graphScript $ map rowLaw rows}
+    <script language=javascript src=/static/jquery.flot.js>
+    ^{graphInclude $ map rowLaw rows}
   <body>
     ^{navigationLinks}
     <h1>#{title}

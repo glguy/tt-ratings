@@ -21,6 +21,7 @@ div.resultbox table {
 
 td.delta {
   text-align: right;
+  width: 1em;
 }
 
 td.outcome {
@@ -29,6 +30,7 @@ td.outcome {
 
 td.opponent {
   text-align: left;
+  width: 10em;
 }
 
 table.summary {

@@ -2,16 +2,19 @@
 module Output.TournamentSummary where
 
 import Control.Lens
+import Data.List (sortBy)
 import Data.List.Split (chunksOf)
 import Data.Map (Map)
+import Data.Ord (comparing)
+import Text.Hamlet (Html, shamlet)
+import qualified Data.Map as Map
+
 import Event
 import Law
 import Output.Common
 import Output.Formatting
 import Player
-import Text.Hamlet (Html, shamlet)
 import Tournament
-import qualified Data.Map as Map
 
 tournamentColumns :: Int
 tournamentColumns = 2
@@ -27,6 +30,8 @@ $with title <- formatTournamentTitle event
     <link rel=stylesheet type=text/css href=/static/common.css>
     <link rel=stylesheet type=text/css href=/static/results.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
+    <script language=javascript src=/static/jquery.flot.js>
+    ^{graphInclude sortedLaws}
   <body>
     ^{navigationLinks}
     <h1>#{title}
@@ -37,13 +42,16 @@ $with title <- formatTournamentTitle event
         ^{detailed}
 |]
   where
+  sorted = sortBy cmp $ Map.toList results
+  cmp    = flip $ comparing $ view $ _2 . summaryFinalLaw . to lawScore
+  sortedLaws = map (view (_2 . summaryFinalLaw)) sorted
   summary = [shamlet|
     <table .summary .data>
       <tr>
         <th>
         <th .colgroup colspan=2>Initial
         <th .colgroup colspan=2>Δ
-        <th .colgroup colspan=2>Final
+        <th .colgroup colspan=3>Final
       <tr>
         <th>Name
         <th>μ
@@ -52,7 +60,8 @@ $with title <- formatTournamentTitle event
         <th>σ
         <th>μ
         <th>σ
-      $forall (i,(name,summ)) <- itoList $ Map.toList results
+        <th>Graph
+      $forall (i,(name,summ)) <- itoList sorted
          $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
           <tr :odd i:.alt>
             <td .opponent>#{view playerName name}
@@ -62,8 +71,12 @@ $with title <- formatTournamentTitle event
             <td .num .delta>^{formatDelta $ lawStddev final - lawStddev initial}
             <td .num .rating>#{showRound $ lawMean   final}
             <td .num .rating>#{showRound $ lawStddev final}
+            <td>
+              <div .bargraph #graph#{i}>
 |]
 
+  countWins   = sumOf (summaryMatches . folded . summaryOutcome . outcomeWins)
+  countLosses = sumOf (summaryMatches . folded . summaryOutcome . outcomeLosses)
   detailed = [shamlet|
     <table .results>
      $forall row <- chunksOf tournamentColumns $ Map.toList results
@@ -87,15 +100,30 @@ $with title <- formatTournamentTitle event
               <th>L
             $forall (i,(opponentName,summary)) <- itoList $ Map.toList $ view summaryMatches summ
                <tr :odd i:.alt>
-                <td .delta>^{formatDelta $ summaryMeanChange   summary}
-                <td .delta>^{formatDelta $ summaryStddevChange summary}
-                <td .quiet .rating>#{showRound $ lawMean   $ summaryAdjustedLaw summary}
-                <td .quiet .rating>#{showRound $ lawStddev $ summaryAdjustedLaw summary}
+                <td .delta>^{formatDelta $ view summaryMeanChange   summary}
+                <td .delta>^{formatDelta $ view summaryStddevChange summary}
+                <td .quiet .rating>#{showRound $ lawMean   $ view summaryAdjustedLaw summary}
+                <td .quiet .rating>#{showRound $ lawStddev $ view summaryAdjustedLaw summary}
                 <td .opponent>#{view playerName opponentName}
-                $with o <- summaryOutcome summary
+                $with o <- view summaryOutcome summary
                   $with (w,l) <- (view outcomeWins o, view outcomeLosses o)
                     <td :isZero w:.quiet .outcome>#{w}
                     <td :isZero l:.quiet .outcome>#{l}
+            <tr>
+              <th colspan=2>Σ
+              <th colspan=3>Final
+              <th colspan=2>Σ
+            <tr>
+              $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
+                <td .delta>^{formatDelta $ lawMean   final - lawMean initial}
+                <td .delta>^{formatDelta $ lawStddev final - lawStddev initial}
+                <td .rating>#{showRound $ lawMean final}
+                <td .rating>#{showRound $ lawStddev final}
+                <td .opponent>#{view playerName name}
+                $with ws <- countWins summ
+                  <td .outcome :isZero ws:.quiet>#{ws}
+                $with ls <- countLosses summ
+                  <td .outcome :isZero ls:.quiet>#{ls}
 |]
 
 isZero :: Int -> Bool

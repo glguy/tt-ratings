@@ -4,7 +4,6 @@ module Output.Player where
 import Text.Hamlet
 import Control.Lens
 import qualified Data.Map as Map
-import Text.Blaze.Html (preEscapedToHtml)
 
 import Event
 import Output.Formatting
@@ -31,7 +30,7 @@ $doctype 5
     <link rel=stylesheet type=text/css href=/static/ratings.css>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js">
     <script language=javascript src=/static/jquery.flot.js>
-    <script language=javascript>#{preEscapedToHtml $ graphScript laws}
+    ^{graphInclude laws}
   <body>
     ^{navigationLinks}
     <h1>Report for #{view playerName player}

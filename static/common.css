@@ -83,3 +83,9 @@ table.data a:hover {
 .quiet {
   color: #bbbbbb;
 }
+
+div.bargraph {
+  width: 10em;
+  height: 1.1em;
+  background-color: white;
+}

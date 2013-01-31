@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Output.Common where
 
-import Data.Text (Text)
-import qualified Data.Text as Text
-import Text.Hamlet
 import Control.Lens
+import Data.Text (Text)
+import Text.Blaze.Html (preEscapedToHtml)
+import Text.Hamlet
+import qualified Data.Text as Text
 
 import DataStore
 import Law
@@ -42,6 +43,11 @@ navigationLinks = [shamlet|
         <a href="/events">Events
       <li>
         <a href="/static/graph.html">Curves
+|]
+
+graphInclude :: [Law] -> Html
+graphInclude laws = [shamlet|
+    <script language=javascript>#{preEscapedToHtml $ graphScript laws}
 |]
 
 graphScript :: [Law] -> String

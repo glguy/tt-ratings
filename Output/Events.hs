@@ -2,10 +2,12 @@
 
 module Output.Events where
 
-import Text.Hamlet
 import Control.Lens
-import qualified Data.Map as Map
+import Data.List (sortBy)
 import Data.Map (Map)
+import Data.Ord (comparing)
+import Text.Hamlet
+import qualified Data.Map as Map
 
 import DataStore (EventId)
 import Event
@@ -27,9 +29,12 @@ $doctype 5
     <table .data>
       <tr>
         <th>Day
-      $forall (i,(eventId,event)) <- itoList $ Map.toList events
+      $forall (i,(eventId,event)) <- itoList sorted
         <tr :odd i:.alt>
           <td>
             <a href=#{mkEventUrl eventId}>
-              #{formatShortDay $ view eventDay event}
+              #{formatLongDay $ view eventDay event}
 |]
+  where
+  sorted = sortBy cmp $ Map.toList events
+  cmp    = flip $ comparing $ view $ _2 . eventDay

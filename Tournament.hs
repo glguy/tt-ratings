@@ -17,12 +17,13 @@ data PlayerSummary name = PlayerSummary
   }
 
 data MatchSummary = MatchSummary
-  { summaryAdjustedLaw  :: Law
-  , summaryMeanChange, summaryStddevChange :: Double
-  , summaryOutcome      :: Outcome
+  { _summaryAdjustedLaw  :: Law
+  , _summaryMeanChange, _summaryStddevChange :: Double
+  , _summaryOutcome      :: Outcome
   }
 
 makeLenses ''PlayerSummary
+makeLenses ''MatchSummary
 
 -- | Outcome without any wins or loses.
 noOutcome :: Outcome
@@ -65,10 +66,10 @@ updatePlayer nearlyAdjustedLaws laws playerName opponents
   computeMatchSummary opponentName accLaw outcome =
     ( finalLaw
     , MatchSummary
-        { summaryAdjustedLaw    = opponentAdjustedLaw
-        , summaryMeanChange     = lawMean   finalLaw - lawMean   accLaw
-        , summaryStddevChange   = lawStddev finalLaw - lawStddev accLaw
-        , summaryOutcome        = outcome
+        { _summaryAdjustedLaw    = opponentAdjustedLaw
+        , _summaryMeanChange     = lawMean   finalLaw - lawMean   accLaw
+        , _summaryStddevChange   = lawStddev finalLaw - lawStddev accLaw
+        , _summaryOutcome        = outcome
         })
     where
     opponentNearlyAdjustedLaw = fromMaybe (error "missing nearly adjusted law")
