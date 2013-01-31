@@ -49,14 +49,10 @@ $with title <- formatTournamentTitle event
     <table .summary .data>
       <tr>
         <th>
-        <th .colgroup colspan=3>Initial
         <th .colgroup colspan=3>Δ
         <th .colgroup colspan=4>Final
       <tr>
         <th>Name
-        <th>μ
-        <th>σ
-        <th>#{"#"}
         <th>μ
         <th>σ
         <th>#{"#"}
@@ -68,13 +64,12 @@ $with title <- formatTournamentTitle event
          $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
           <tr :odd i:.alt>
             <td .opponent>#{view playerName name}
-            <td .num .rating>#{showRound $ lawMean   initial}
-            <td .num .rating>#{showRound $ lawStddev initial}
-            <td .num .rating>#{1 + view summaryInitialRank summ}
             <td .num .delta>^{formatDelta $ lawMean final - lawMean initial}
             <td .num .delta>^{formatDelta $ lawStddev final - lawStddev initial}
             $with rankChange <- negate $ view summaryFinalRank summ - view summaryInitialRank summ
-              <td :isZero rankChange:.quiet .num .delta>^{formatDelta $ fromIntegral rankChange}
+              <td .num .delta>
+                $if not $ isZero rankChange
+                  ^{formatDelta $ fromIntegral rankChange}
             <td .num .rating>#{showRound $ lawMean   final}
             <td .num .rating>#{showRound $ lawStddev final}
             <td .num .rating>#{1 + view summaryFinalRank summ}
