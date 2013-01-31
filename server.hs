@@ -7,6 +7,7 @@ import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Lens
 import Control.Monad.IO.Class
+import Data.Foldable (traverse_)
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
@@ -130,10 +131,19 @@ exportPlayersHandler :: Handler App App ()
 exportPlayersHandler = do
   ms <- getPlayers
   let xs = [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
-  sendJson xs
+
+  callbackWrapper $ sendJson xs
+
+callbackWrapper :: Handler App App a -> Handler App App a
+callbackWrapper m = do
+  mb <- getParam "callback"
+  traverse_ (\bs -> writeBS bs >> writeBS "(") mb
+  x <- m
+  traverse_ (\_  -> writeBS ")") mb
+  return x
 
 exportMatchesHandler :: Handler App App ()
-exportMatchesHandler = sendJson =<< exportMatches
+exportMatchesHandler = callbackWrapper . sendJson =<< exportMatches
 
 eventsGetHandler :: Handler App App ()
 eventsGetHandler = do
@@ -181,7 +191,8 @@ curvesHandler = do
          for (Map.toList eventMap) $ \(i,(_,law)) ->
            do player <- Map.lookup i players
               return (view playerName player, lawElems law)
-  sendJson curveData
+
+  callbackWrapper $ sendJson curveData
 
 
 defaultHandler :: Handler App App ()
