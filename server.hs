@@ -7,7 +7,6 @@ import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Lens
 import Control.Monad.IO.Class
-import Data.Foldable (traverse_)
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
@@ -131,19 +130,10 @@ exportPlayersHandler :: Handler App App ()
 exportPlayersHandler = do
   ms <- getPlayers
   let xs = [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
-
-  callbackWrapper $ sendJson xs
-
-callbackWrapper :: Handler App App a -> Handler App App a
-callbackWrapper m = do
-  mb <- getParam "callback"
-  traverse_ (\bs -> writeBS bs >> writeBS "(") mb
-  x <- m
-  traverse_ (\_  -> writeBS ")") mb
-  return x
+  sendJson xs
 
 exportMatchesHandler :: Handler App App ()
-exportMatchesHandler = callbackWrapper . sendJson =<< exportMatches
+exportMatchesHandler = sendJson =<< exportMatches
 
 eventsGetHandler :: Handler App App ()
 eventsGetHandler = do
@@ -192,7 +182,7 @@ curvesHandler = do
            do player <- Map.lookup i players
               return (view playerName player, lawElems law)
 
-  callbackWrapper $ sendJson curveData
+  sendJson curveData
 
 
 defaultHandler :: Handler App App ()
@@ -234,8 +224,17 @@ saveMatch _matchWinner _matchLoser = do
 
 sendJson :: (Aeson.ToJSON a, MonadSnap m) => a -> m ()
 sendJson x = do
-  modifyResponse $ setContentType "application/json; charset=utf-8"
-  writeLBS $ Aeson.encode x
+  mb <- getParam "callback"
+  case mb of
+    Nothing ->
+      do modifyResponse (setContentType "application/json; charset=utf-8")
+         writeLBS (Aeson.encode x)
+    Just callback ->
+      do modifyResponse (setContentType "application/javascript; charset=utf-8")
+         writeBS callback
+         writeBS "("
+         writeLBS (Aeson.encode x)
+         writeBS ")"
 
 sendHtml :: MonadSnap m => Html -> m ()
 sendHtml html = do
