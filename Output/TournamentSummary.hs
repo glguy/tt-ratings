@@ -88,7 +88,7 @@ $with title <- formatTournamentTitle event
           <table .matchbox .data>
             <tr>
               <th .colgroup colspan=2>Δ
-              <th .colgroup colspan=3>Opponent
+              <th .colgroup colspan=3>Adjusted Opponent
               <th .colgroup colspan=2>
             <tr>
               <th>μ

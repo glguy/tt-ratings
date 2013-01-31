@@ -56,30 +56,32 @@ graphScript laws
   $ "$(document).ready(function drawGraphs() {"
   : options
   ++ imap drawOne laws
- ++ ["})"]
-  where
-  drawOne i law =
-    "$.plot($(\"#graph"++show i++"\"), [" ++ show dat ++ "], options);"
-    where
-    dat = map (\x -> [x,0]) [mkLo law, mkLoMid law, lawMean law, mkHiMid law, mkHi law]
-  mkLo law = lawMean law - 2 * lawStddev law
-  mkLoMid law = lawMean law - lawStddev law
-  mkHiMid law = lawMean law + lawStddev law
-  mkHi law = lawMean law + 2 * lawStddev law
-  minVal = minimum $ map mkLo laws
-  maxVal = maximum $ map mkHi laws
-  options =
-      [ "function vertLine(ctx, x, y, radius, shadow) {"
-      , "     ctx.moveTo(x, y - radius);"
-      , "     ctx.lineTo(x, y + radius);"
-      , "}"
-      , "var options = {"
-      ," xaxis: { min: " ++ show minVal ++ ", max: " ++ show maxVal ++  " , show: false },"
-      ," yaxis: { show: false },"
-      ," margin: { top: 0, left: 0, right: 0, bottom: 0 },"
-      ," lines: { show: true },"
-      ," points: { show: true, symbol: vertLine },"
-      ," colors: [\"red\"]"
-      ,"};"
-      ]
+ ++ ["});"]
 
+  where
+  minVal = minimum $ 3600 : map mkLo laws
+  maxVal = maximum $    0 : map mkHi laws
+  mkLo    law = lawMean law - 2 * lawStddev law
+  mkLoMid law = lawMean law -     lawStddev law
+  mkHiMid law = lawMean law +     lawStddev law
+  mkHi    law = lawMean law + 2 * lawStddev law
+
+  drawOne i law =
+      "$.plot($(\"#graph"++show i++"\"), " ++ show [mkSeries law] ++ ", options);"
+
+  mkSeries law = [[x,0] | x <- [mkLo law, mkLoMid law, lawMean law, mkHiMid law, mkHi law]]
+
+  options =
+        [ "function vertLine(ctx, x, y, radius, shadow) {"
+        , "     ctx.moveTo(x, y - radius);"
+        , "     ctx.lineTo(x, y + radius);"
+        , "}"
+        , "var options = {"
+        ," xaxis: { min: " ++ show minVal ++ ", max: " ++ show maxVal ++  " , show: false },"
+        ," yaxis: { show: false },"
+        ," margin: { top: 0, left: 0, right: 0, bottom: 0 },"
+        ," lines: { show: true },"
+        ," points: { show: true, symbol: vertLine },"
+        ," colors: [\"red\"]"
+        ,"};"
+        ]

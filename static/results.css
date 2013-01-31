@@ -36,6 +36,11 @@ td.opponent {
 table.summary {
   margin-left: auto;
   margin-right: auto;
+  margin-bottom: 1em;
+}
+
+table.summary td {
+  font-size: larger;
 }
 
 span.negative {
