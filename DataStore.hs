@@ -154,7 +154,7 @@ getLawsForEvent backOne topEventId = do
         then query "SELECT eventDay, lawData\
                        \ FROM law\
                        \ NATURAL JOIN event \
-                       \ WHERE playerId = ? AND NOT eventId = ?\
+                       \ WHERE playerId = ? AND eventId < ?\
                        \ ORDER BY eventDay DESC LIMIT 1"
                              (playerId, topEventId)
         else query "SELECT eventDay, lawData\
