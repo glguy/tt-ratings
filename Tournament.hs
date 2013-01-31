@@ -1,11 +1,13 @@
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Tournament where
 
 import Control.Lens
-import Data.List (foldl')
+import Data.List (elemIndex, foldl', sortBy)
 import Data.Map (Map)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromJust, fromMaybe)
+import Data.Ord (comparing)
 import Data.Time.Calendar
 import Law
 import Match
@@ -14,6 +16,7 @@ import qualified Data.Map as Map
 data PlayerSummary name = PlayerSummary
   { _summaryInitialLaw, _summaryFinalLaw :: Law
   , _summaryMatches :: Map name MatchSummary
+  , _summaryInitialRank, _summaryFinalRank :: Int
   }
 
 data MatchSummary = MatchSummary
@@ -54,9 +57,11 @@ updatePlayer ::
   PlayerSummary name
 updatePlayer nearlyAdjustedLaws laws playerName opponents
   = PlayerSummary
-      { _summaryInitialLaw = initial
-      , _summaryFinalLaw = final
-      , _summaryMatches = matchSummaries
+      { _summaryInitialLaw      = initial
+      , _summaryFinalLaw        = final
+      , _summaryMatches         = matchSummaries
+      , _summaryInitialRank     = error "initial rank not filled in"
+      , _summaryFinalRank       = error "final rank not filled in"
       }
   where
   initial = getLaw playerName laws
@@ -100,11 +105,30 @@ degradeLaw today lastUpdate law = timeEffect days law
   where
   days = fromIntegral $ diffDays today lastUpdate
 
+computeRanks ::
+  Eq name =>
+  Map name Law {- ^ All known laws -} ->
+  Lens' (PlayerSummary name) Int ->
+  Map name (PlayerSummary name) ->
+  Map name (PlayerSummary name)
+computeRanks laws rankLens s =
+  iover (imapped <. rankLens) (\p _ -> playerRank p) s
+  where
+  rankedPlayers = map fst $ sortBy cmp $ Map.toList laws
+  cmp = flip $ comparing $ view $ _2 . to lawScore
+  playerRank p = fromJust $ elemIndex p rankedPlayers
+
 evaluateTournament :: Ord name => [Match name] -> Map name Law -> Map name (PlayerSummary name)
-evaluateTournament tournament laws = imap (updatePlayer firstPassLaws laws) outcomes
+evaluateTournament tournament laws
+  = computeRanks finalLaws summaryFinalRank
+  $ computeRanks laws summaryInitialRank
+  $ summaryWithoutRanks
   where
   outcomes = matchOutcomes tournament
   firstPassLaws = imap (firstPass laws) outcomes
+  finalLaws = fmap (view summaryFinalLaw) summaryWithoutRanks
+              `Map.union` laws
+  summaryWithoutRanks = imap (updatePlayer firstPassLaws laws) outcomes
 
 firstPass :: Ord name => Map name Law -> name -> Map name Outcome -> Law
 firstPass initialLaws name = ifoldl aux (getLaw name initialLaws)
