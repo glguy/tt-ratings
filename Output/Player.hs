@@ -37,7 +37,7 @@ $doctype 5
     <h1>Report for #{view playerName player}
     <table .data>
        <tr>
-         <th colspan=2>Event
+         <th>Event
          <th colspan=3>Rating
        <tr>
          <th>Date
