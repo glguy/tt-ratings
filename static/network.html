@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<!-- Author: Benjamin Jones <bjones@galois.com> -->
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="google" content="notranslate">
+  <meta http-equiv="Content-Language" content="en" />
+  <title>Player Network</title>
+  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
+  <script type="text/javascript" src="raphael.js"></script>
+  <script type="text/javascript" src="dracula_graffle.js"></script>
+  <script type="text/javascript" src="dracula_graph.js"></script>
+  <script>
+
+  var redraw;
+  $(document).ready(function(){
+
+      var match_freq = {}; // match frequencies { i1: { i2: num, i3: num, ...}, ... }
+      var partic = {};
+
+      // called after the exportmatches ajax request returns
+      var populateMatches = function (data) {
+
+          console.log("populating match_freq");
+          // populate the match_freq object
+          $.map(data, function(val, i) {
+              var p1 = val[0];
+              var p2 = val[1];
+              // p1 is a date string, p2 is a match list
+              $.map(p2, function (val, i) {
+                  var i1 = parseInt(val[0]);
+                  var i2 = parseInt(val[1]);
+                  // i1 and i2 are player IDs
+                  if (i1 <= i2) {
+                      updateMatch(match_freq, i1, i2);
+                  } else {
+                      updateMatch(match_freq, i2, i1);
+                  }
+                  partic[i1] = true;
+                  partic[i2] = true;
+              });
+          });
+
+          // add nodes to the graph
+          for (id in names) {
+              if (id in partic)
+                  g.addNode(id, {label: names[id]});
+          }
+          // add edged to the graph
+          for (i1 in match_freq) {
+              for (i2 in match_freq[i1]) {
+                  // g.addEdge(i1, i2, { 'stroke': '#fff', 'stroke-width' : computeStroke(match_freq[i1][i2])});
+                  var e = g.addEdge(i1, i2, { 'stroke': computeStroke(match_freq[i1][i2]), 'fill':  '#dedede', 'opacity': 0.2});
+                  console.log(e);
+              }
+          }
+
+          redraw();
+      }
+
+      var names = {}; // ID -> name map { 1: "Ben", 2:"Eric", ... }
+      var populateNames = function (data) {
+
+          console.log("populating names");
+          // populate the names object
+          $.map(data, function(val,i) {
+            var playerId   = parseInt(val[0]);
+            var playerName = val[1];
+            names[playerId] = playerName;
+          });
+
+          // now make an ajax request to exportmatches
+          $.ajax({
+            dataType: "jsonp",
+            url: 'http://pong.galois.com/exportmatches?callback=?',
+            success: populateMatches
+          });
+
+      }
+
+      var computeStroke = function (d) {
+          if (d <= 3)
+              return '#dedede';
+          else if (d <= 6)
+              return '#999999';
+          else if (d <= 9)
+              return '#555555';
+          else
+              return '#000000';
+      }
+
+      var updateMatch = function (map, i1, i2) {
+          if (i1 in map) {
+              d = map[i1];
+              if (i2 in d)
+                  d[i2] = d[i2] + 1;
+              else
+                  d[i2] = 1;
+          } else {
+              map[i1] = {};
+              map[i1][i2] = 1;
+          }
+      }
+
+
+      var g = new Graph();
+      var layouter = new Graph.Layout.Spring(g);
+      var renderer = new Graph.Renderer.Raphael('network', g, 600, 600);
+
+      redraw = function () {
+          layouter.layout();
+          renderer.draw();
+      }
+
+      // last step is to make the initial ajax request and wait for callback
+      $.ajax({
+        dataType: "jsonp",
+        url: 'http://pong.galois.com/exportplayers?callback=?',
+        success: populateNames
+      });
+  });
+  </script>
+  <style language="css">
+          #network { width: 100%; height: 600px; width: 600px; border: 1px solid black; }
+  </style>
+</head>
+<body>
+  <div id="network"></div>
+  <button id="redraw" onclick="redraw();">Redraw!</button>
+</body>
+</html>
+
