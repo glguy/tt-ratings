@@ -120,9 +120,11 @@ matchopPostHandler = do
 
 rerunEvent :: Bool -> EventId -> Handler App App Html
 rerunEvent changed eventId = do
+  -- This might update the database if changed is True
   (event,report) <- generateTournamentSummary changed eventId
+  allLaws        <- getLawsForEvent True eventId
   players        <- getPlayers
-  let html = tournamentHtml players event report
+  let html = tournamentHtml players event report allLaws
   var <- use tournamentReports
   liftIO $ modifyMVar_ var $ \cache -> return $ cache & at eventId ?~ html
   return html

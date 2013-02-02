@@ -2,9 +2,13 @@
 module Output.TournamentSummary where
 
 import Control.Lens
-import Data.List (sortBy)
+import Data.Foldable (toList)
+import Data.Function (on)
+import Data.List (sortBy, elemIndex)
 import Data.List.Split (chunksOf)
 import Data.Map (Map)
+import Data.Maybe (fromJust)
+import Data.Time.Calendar (Day)
 import Data.Ord (comparing)
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
@@ -20,8 +24,55 @@ import Tournament
 tournamentColumns :: Int
 tournamentColumns = 2
 
-tournamentHtml :: Map PlayerId Player -> Event -> Map PlayerId (PlayerSummary PlayerId) -> Html
-tournamentHtml players event results = [shamlet|
+data SummaryTableRow = SummaryTableRow
+  { rowPlayerId :: PlayerId
+  , rowPlayer :: Player
+  , rowRankChange :: Int
+  , rowInitialLaw :: Law
+  , rowFinalLaw :: Law
+  }
+
+buildSummaryRows ::
+  Map PlayerId Player ->
+  Map PlayerId (Day, Law) ->
+  Map PlayerId (PlayerSummary PlayerId) ->
+  [SummaryTableRow]
+buildSummaryRows players laws changes = rows
+  where
+  rows          = sortBy cmpRow $ map mkSummaryRow $ Map.toList beforeAndAfter
+  cmpRow        = flip (comparing (lawScore . rowFinalLaw))
+
+  -- laws as they were before and after the event, for players who didn't
+  -- play the law will be the same before and after
+  beforeAndAfter = fmap changeCase changes `Map.union` fmap sameCase laws
+    where
+    changeCase c = (view summaryInitialLaw c, view summaryFinalLaw c)
+    sameCase (_,law) = (law,law)
+
+  -- Score index in these list corresponds to initial and final "rank"
+  initialLaws = mkOrderedScoreList (fmap fst beforeAndAfter)
+  finalLaws   = mkOrderedScoreList (fmap snd beforeAndAfter)
+  mkOrderedScoreList m = sortBy (flip compare) (fmap lawScore (toList m))
+
+  mkSummaryRow (playerId, (initialLaw,finalLaw)) =
+    SummaryTableRow
+    { rowPlayerId     = playerId
+    , rowPlayer       = fromJust (Map.lookup playerId players)
+    , rowRankChange   = fromJust $ -- All the laws are definitely in the ordered law lists
+                      do finalRank   <- lawScore finalLaw   `elemIndex` finalLaws
+                         initialRank <- lawScore initialLaw `elemIndex` initialLaws
+                         return (initialRank - finalRank)
+    , rowInitialLaw   = initialLaw
+    , rowFinalLaw     = finalLaw
+    }
+
+tournamentHtml ::
+  Map PlayerId Player {- ^ map of all playerids to players -} ->
+  Event               {- ^ details of current event -} ->
+  Map PlayerId (PlayerSummary PlayerId) {- ^ changes due to current event -} ->
+  Map PlayerId (Day, Law) {- ^ map of all laws as of the current event -} ->
+  Html
+tournamentHtml players event results laws = [shamlet|
 $doctype 5
 $with title <- formatTournamentTitle event
  <html>
@@ -43,39 +94,31 @@ $with title <- formatTournamentTitle event
         ^{detailed}
 |]
   where
-  sorted = sortBy cmp $ Map.toList results
-  cmp    = flip $ comparing $ view $ _2 . summaryFinalLaw . to lawScore
-  sortedLaws = map (view (_2 . summaryFinalLaw)) sorted
+  sorted     = buildSummaryRows players laws results
+  sortedLaws = map rowFinalLaw sorted
   summary = [shamlet|
     <table .summary .data>
       <tr>
         <th>
         <th .colgroup colspan=3>Δ
-        <th .colgroup colspan=4>Final
+        <th .colgroup colspan=3>Final
       <tr>
         <th>Name
         <th>μ
         <th>σ
-        <th>#{"#"}
+        <th>##
         <th>μ
         <th>σ
-        <th>#{"#"}
         <th>Graph
-      $forall (i,(playerId,summ)) <- itoList sorted
-         $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
-          <tr :odd i:.alt>
-            <td .opponent>
-              $with Just player <- view (at playerId) players
-                ^{playerLink playerId player}
-            <td .num .delta>^{formatDelta $ lawMean final - lawMean initial}
-            <td .num .delta>^{formatDelta $ lawStddev final - lawStddev initial}
-            $with rankChange <- negate $ view summaryFinalRank summ - view summaryInitialRank summ
-              <td .num .delta>
-                $if not $ isZero rankChange
-                  ^{formatDelta $ fromIntegral rankChange}
-            <td .num .rating>#{showRound $ lawMean   final}
-            <td .num .rating>#{showRound $ lawStddev final}
-            <td .num .rating>#{1 + view summaryFinalRank summ}
+      $forall (i,row) <- itoList sorted
+        <tr :odd i:.alt>
+          <td .opponent>
+            ^{playerLink (rowPlayerId row) (rowPlayer row)}
+            <td .num .delta>^{formatDelta $ on (-) lawMean   (rowFinalLaw row) (rowInitialLaw row)}
+            <td .num .delta>^{formatDelta $ on (-) lawStddev (rowFinalLaw row) (rowInitialLaw row)}
+            <td .num .delta>^{formatDelta $ fromIntegral $ rowRankChange row}
+          <td .num .rating>#{showRound $ lawMean   $ rowFinalLaw row}
+          <td .num .rating>#{showRound $ lawStddev $ rowFinalLaw row}
             <td>
               <div .bargraph #graph#{i}>
 |]
@@ -146,7 +189,7 @@ formatTournamentTitle event
 formatDelta :: Double -> Html
 formatDelta d = case compare d 0 of
   LT -> [shamlet| <span .negative>#{showRound (abs d)} |]
-  EQ -> [shamlet| 0 |]
+  EQ -> [shamlet| |]
   GT -> [shamlet| #{showRound d} |]
 
 formatDeltaOp :: Double -> String

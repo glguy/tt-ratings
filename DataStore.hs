@@ -15,10 +15,9 @@ import LawSerialization
 import Control.Applicative
 import Control.Lens
 import Control.Monad (liftM)
-import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Int (Int64)
 import Data.Map (Map)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (catMaybes, listToMaybe)
 import Data.Text (Text)
 import Data.Time
 import Data.Traversable (for)
@@ -145,10 +144,7 @@ getActivePlayerIds =
 getLawsForEvent :: (Applicative m, HasSqlite m) => Bool -> EventId -> m (Map PlayerId (Day, Law))
 getLawsForEvent backOne topEventId = do
   playerIds <- getActivePlayerIds
-
-  today <- liftIO $ localDay . zonedTimeToLocalTime <$> getZonedTime
-
-  fmap Map.fromList $
+  fmap (Map.fromList . catMaybes) $
     for playerIds $ \playerId -> do
       xs <-  if backOne
         then query "SELECT eventDay, lawData\
@@ -164,8 +160,8 @@ getLawsForEvent backOne topEventId = do
                        \ ORDER BY eventDay DESC LIMIT 1"
                              (Only playerId)
       case xs of
-        (Only day :. law) : _ -> return (playerId, (day,law))
-        _  -> return (playerId, (today,defaultLaw))
+        (Only day :. law) : _ -> return (Just (playerId, (day,law)))
+        _  -> return Nothing
 
 clearLawsForEvent :: HasSqlite m => EventId -> m ()
 clearLawsForEvent eventId = execute "DELETE FROM law WHERE eventId = ?" (Only eventId)
