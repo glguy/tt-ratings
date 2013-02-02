@@ -11,13 +11,12 @@ import Data.Foldable (toList)
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
+import Data.Text (Text)
+import Data.Text.Read
 import Data.Time
-import Data.Foldable (for_)
 import System.Locale
 import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
 import Text.Hamlet (shamlet, Html)
-import Data.Text.Read
-import Data.Text (Text)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -97,25 +96,32 @@ matchPostHandler = do
   saveMatch winnerId loserId
   redirect "/"
 
+-- The user clicked one of the buttons next to a match
+-- on the match entry screen. Figure out which one and
+-- dispatch.
 matchopPostHandler :: Handler App App ()
 matchopPostHandler = do
   action  <- getParam' "action"
   matchId <- MatchId <$> getNumParam "matchId"
   case action of
-      "delete" ->
-        do Just eventId <- getEventIdByMatchId matchId
-           Just event   <- getEventById eventId
-           today        <- localDay <$> getLocalTime
-           unless (view eventDay event == today)
-                  (fail "This match can not be deleted")
-           deleteMatchById matchId
-           _ <- rerunEvent True eventId
-           return ()
-      "duplicate"  ->
-        do mbMatch <- getMatchById' matchId
-           for_ mbMatch $ \match ->
-             saveMatch (view matchWinner match) (view matchLoser match)
-      _ -> return ()
+    "delete"    -> deleteMatchHandler    matchId
+    "duplicate" -> duplicateMatchHandler matchId
+    _           -> fail "Unknown action"
+
+duplicateMatchHandler :: MatchId -> Handler App App ()
+duplicateMatchHandler matchId = do
+  match <- getMatchById' matchId `onNothing` "Unknown match"
+  saveMatch (view matchWinner match) (view matchLoser match)
+  redirect "/"
+
+deleteMatchHandler :: MatchId -> Handler App App ()
+deleteMatchHandler matchId = do
+  eventId <- getEventIdByMatchId matchId `onNothing` "Unknown match"
+  event   <- getEventById eventId        `onNothing` "Unknown event"
+  today   <- localDay <$> getLocalTime
+  unless (view eventDay event == today) (fail "This match can not be deleted")
+  deleteMatchById matchId
+  _ <- rerunEvent True eventId
   redirect "/"
 
 rerunEvent :: Bool -> EventId -> Handler App App Html
@@ -124,16 +130,15 @@ rerunEvent changed eventId = do
   (event,report) <- generateTournamentSummary changed eventId
   allLaws        <- getLawsForEvent True eventId
   players        <- getPlayers
-  let html = tournamentHtml players event report allLaws
-  var <- use tournamentReports
+  let html       =  tournamentHtml players event report allLaws
+  var            <- use tournamentReports
   liftIO $ modifyMVar_ var $ \cache -> return $ cache & at eventId ?~ html
   return html
 
 exportPlayersHandler :: Handler App App ()
 exportPlayersHandler = do
   ms <- getPlayers
-  let xs = [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
-  sendJson xs
+  sendJson [ (op PlayerId k, view playerName v) | (k,v) <- Map.toList ms]
 
 exportMatchesHandler :: Handler App App ()
 exportMatchesHandler = sendJson =<< exportMatches
@@ -154,8 +159,8 @@ eventHandler = do
   var     <- use tournamentReports
   cache   <- liftIO $ readMVar var
   html    <- case view (at eventId) cache of
-    Just html   -> return html
-    Nothing     -> rerunEvent False eventId
+               Just html -> return html
+               Nothing   -> rerunEvent False eventId
   sendHtml html
 
 playerHandler :: Handler App App ()
@@ -309,8 +314,8 @@ thePage err w l ps table = [shamlet|
   <head>
     ^{metaTags}
     <title>Ping Pong Results
-    <link rel=stylesheet type=text/css href=static/common.css>
-    <link rel=stylesheet type=text/css href=static/style.css>
+    <link rel=stylesheet type=text/css href=/static/common.css>
+    <link rel=stylesheet type=text/css href=/static/style.css>
   <body>
     ^{navigationLinks}
     <div .entry>
@@ -327,3 +332,6 @@ thePage err w l ps table = [shamlet|
       <div #errorMessage>#{errMsg}
     ^{table}
 |]
+
+onNothing :: Monad m => m (Maybe a) -> String -> m a
+onNothing m str = maybe (fail str) return =<< m
