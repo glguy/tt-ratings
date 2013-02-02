@@ -9,6 +9,7 @@ import Data.Ord (comparing)
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
 
+import DataStore
 import Event
 import Law
 import Output.Common
@@ -19,8 +20,8 @@ import Tournament
 tournamentColumns :: Int
 tournamentColumns = 2
 
-tournamentHtml :: Event -> Map Player (PlayerSummary Player) -> Html
-tournamentHtml event results = [shamlet|
+tournamentHtml :: Map PlayerId Player -> Event -> Map PlayerId (PlayerSummary PlayerId) -> Html
+tournamentHtml players event results = [shamlet|
 $doctype 5
 $with title <- formatTournamentTitle event
  <html>
@@ -60,10 +61,12 @@ $with title <- formatTournamentTitle event
         <th>σ
         <th>#{"#"}
         <th>Graph
-      $forall (i,(name,summ)) <- itoList sorted
+      $forall (i,(playerId,summ)) <- itoList sorted
          $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
           <tr :odd i:.alt>
-            <td .opponent>#{view playerName name}
+            <td .opponent>
+              $with Just player <- view (at playerId) players
+                ^{playerLink playerId player}
             <td .num .delta>^{formatDelta $ lawMean final - lawMean initial}
             <td .num .delta>^{formatDelta $ lawStddev final - lawStddev initial}
             $with rankChange <- negate $ view summaryFinalRank summ - view summaryInitialRank summ
@@ -80,52 +83,56 @@ $with title <- formatTournamentTitle event
   countWins   = sumOf (summaryMatches . folded . summaryOutcome . outcomeWins)
   countLosses = sumOf (summaryMatches . folded . summaryOutcome . outcomeLosses)
   detailed = [shamlet|
-    <table .results>
-     $forall row <- chunksOf tournamentColumns $ Map.toList results
-      <tr>
-       $forall (name,summ) <- row
-        <td>
-         <div .resultbox>
-          <span .playername>#{view playerName name}
-          <table .matchbox .data>
-            <tr>
-              <th .colgroup colspan=2>Δ
-              <th .colgroup colspan=3>Adjusted Opponent
-              <th .colgroup colspan=2>
-            <tr>
-              <th>μ
-              <th>σ
-              <th>μ
-              <th>σ
-              <th>Name
-              <th>W
-              <th>L
-            $forall (i,(opponentName,summary)) <- itoList $ Map.toList $ view summaryMatches summ
-               <tr :odd i:.alt>
-                <td .delta>^{formatDelta $ view summaryMeanChange   summary}
-                <td .delta>^{formatDelta $ view summaryStddevChange summary}
-                <td .quiet .rating>#{showRound $ lawMean   $ view summaryAdjustedLaw summary}
-                <td .quiet .rating>#{showRound $ lawStddev $ view summaryAdjustedLaw summary}
-                <td .opponent>#{view playerName opponentName}
-                $with o <- view summaryOutcome summary
-                  $with (w,l) <- (view outcomeWins o, view outcomeLosses o)
-                    <td :isZero w:.quiet .outcome>#{w}
-                    <td :isZero l:.quiet .outcome>#{l}
-            <tr>
-              <th colspan=2>Σ
-              <th colspan=3>Final
-              <th colspan=2>Σ
-            <tr>
-              $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
-                <td .delta>^{formatDelta $ lawMean   final - lawMean initial}
-                <td .delta>^{formatDelta $ lawStddev final - lawStddev initial}
-                <td .rating>#{showRound $ lawMean final}
-                <td .rating>#{showRound $ lawStddev final}
-                <td .opponent>#{view playerName name}
-                $with ws <- countWins summ
-                  <td .outcome :isZero ws:.quiet>#{ws}
-                $with ls <- countLosses summ
-                  <td .outcome :isZero ls:.quiet>#{ls}
+<table .results>
+  $forall row <- chunksOf tournamentColumns $ Map.toList results
+    <tr>
+      $forall (playerId,summ) <- row
+        $with Just player <- view (at playerId) players
+          <td>
+           <div .resultbox>
+            <span .playername>
+                ^{playerLink playerId player}
+            <table .matchbox .data>
+              <tr>
+                <th .colgroup colspan=2>Δ
+                <th .colgroup colspan=3>Adjusted Opponent
+                <th .colgroup colspan=2>
+              <tr>
+                <th>μ
+                <th>σ
+                <th>μ
+                <th>σ
+                <th>Name
+                <th>W
+                <th>L
+              $forall (i,(opponentId,summary)) <- itoList $ Map.toList $ view summaryMatches summ
+                 <tr :odd i:.alt>
+                  <td .delta>^{formatDelta $ view summaryMeanChange   summary}
+                  <td .delta>^{formatDelta $ view summaryStddevChange summary}
+                  <td .quiet .rating>#{showRound $ lawMean   $ view summaryAdjustedLaw summary}
+                  <td .quiet .rating>#{showRound $ lawStddev $ view summaryAdjustedLaw summary}
+                  <td .opponent>
+                    $with Just opponent <- view (at opponentId) players
+                      ^{playerLink opponentId opponent}
+                  $with o <- view summaryOutcome summary
+                    $with (w,l) <- (view outcomeWins o, view outcomeLosses o)
+                      <td :isZero w:.quiet .outcome>#{w}
+                      <td :isZero l:.quiet .outcome>#{l}
+              <tr>
+                <th colspan=2>Σ
+                <th colspan=3>Final
+                <th colspan=2>Σ
+              <tr>
+                $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
+                  <td .delta>^{formatDelta $ lawMean   final - lawMean initial}
+                  <td .delta>^{formatDelta $ lawStddev final - lawStddev initial}
+                  <td .rating>#{showRound $ lawMean final}
+                  <td .rating>#{showRound $ lawStddev final}
+                  <td .opponent>^{playerLink playerId player}
+                  $with ws <- countWins summ
+                    <td .outcome :isZero ws:.quiet>#{ws}
+                  $with ls <- countLosses summ
+                    <td .outcome :isZero ls:.quiet>#{ls}
 |]
 
 isZero :: Int -> Bool

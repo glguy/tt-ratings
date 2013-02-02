@@ -89,3 +89,12 @@ div.bargraph {
   height: 1.1em;
   background-color: white;
 }
+
+span.playername a {
+  text-decoration: none;
+  color: black;
+}
+
+span.playername a:hover {
+  text-decoration: underline;
+}

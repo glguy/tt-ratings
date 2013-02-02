@@ -43,7 +43,7 @@ $doctype 5
         $forall (i,(playerId,(player,lastday,law))) <- itoList rows
           <tr :odd i:.alt>
             <td .str>
-               <a href=#{mkPlayerUrl playerId}>#{view playerName player}
+               ^{playerLink playerId player}
             <td .num>#{showRound $ lawMean law}
             <td .num>#{showRound $ lawStddev law}
             <td .num>#{showRound $ lawScore law}

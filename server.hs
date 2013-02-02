@@ -7,12 +7,12 @@ import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Lens
 import Control.Monad.IO.Class
+import Data.Foldable (toList)
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Time
 import Data.Foldable (for_)
-import Data.Traversable (for)
 import System.Locale
 import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
 import Text.Hamlet (shamlet, Html)
@@ -121,7 +121,8 @@ matchopPostHandler = do
 rerunEvent :: Bool -> EventId -> Handler App App Html
 rerunEvent changed eventId = do
   (event,report) <- generateTournamentSummary changed eventId
-  let html = tournamentHtml event report
+  players        <- getPlayers
+  let html = tournamentHtml players event report
   var <- use tournamentReports
   liftIO $ modifyMVar_ var $ \cache -> return $ cache & at eventId ?~ html
   return html
@@ -163,25 +164,25 @@ playerHandler = do
 
 playersHandler :: Handler App App ()
 playersHandler = do
-  eventId <- getLatestEventId
-  players  <- getPlayers
-  today    <- localDay <$> getLocalTime
-  eventMap <- getLawsForEvent False eventId
-  let Just eventMap' = ifor eventMap $ \i (a,b) ->
-                             do player <- Map.lookup i players
-                                return (player,a,b)
+  eventId       <- getLatestEventId
+  players       <- getPlayers
+  today         <- localDay <$> getLocalTime
+  eventMap      <- getLawsForEvent False eventId
+  eventMap'     <- maybe (fail "Unknown player id in event") return
+                 $ ifor eventMap $ \i (a,b) ->
+                     do player <- Map.lookup i players
+                        return (player,a,b)
   sendHtml $ playersHtml today eventMap'
 
 curvesHandler :: Handler App App ()
 curvesHandler = do
-  eventId <- getLatestEventId
-  players      <- getPlayers
-  eventMap     <- getLawsForEvent False eventId
-  let Just curveData =
-         for (Map.toList eventMap) $ \(i,(_,law)) ->
-           do player <- Map.lookup i players
-              return (view playerName player, lawElems law)
-
+  eventId       <- getLatestEventId
+  players       <- getPlayers
+  eventMap      <- getLawsForEvent False eventId
+  curveData     <- maybe (fail "Unknown player id in event") (return . toList)
+                 $ ifor eventMap $ \i (_,law) ->
+                     do player <- Map.lookup i players
+                        return (view playerName player, lawElems law)
   sendJson curveData
 
 
@@ -202,7 +203,8 @@ mainPage err w l =
      ms <- case mb of
              Nothing            -> return Map.empty
              Just eventId       -> getMatchesByEventId eventId
-     let Just namedMatches = (each . traverse) (flip Map.lookup ps) ms
+     namedMatches <- maybe (fail "unknown player id") return
+                   $ (traverse . traverse) (flip Map.lookup ps) ms
      return $ thePage err w l (Map.elems ps)
             $ formatMatches tz today namedMatches
 

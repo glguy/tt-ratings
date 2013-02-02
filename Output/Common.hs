@@ -9,6 +9,7 @@ import qualified Data.Text as Text
 
 import DataStore
 import Law
+import Player
 
 --------------------------------------------------------------------------------
 -- URL generators
@@ -18,6 +19,11 @@ mkPlayerUrl (PlayerId i) = "/player/" `Text.append` Text.pack (show i)
 
 mkEventUrl :: EventId -> Text
 mkEventUrl (EventId i) = "/event/" `Text.append` Text.pack (show i)
+
+--------------------------------------------------------------------------------
+
+playerLink :: PlayerId -> Player -> Html
+playerLink playerId player = [shamlet|<a href=#{mkPlayerUrl playerId}>#{view playerName player}|]
 
 --------------------------------------------------------------------------------
 
