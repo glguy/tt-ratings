@@ -11,6 +11,9 @@ import DataStore
 import Law
 import Player
 
+graphStddevCutoff :: Double
+graphStddevCutoff = 150
+
 --------------------------------------------------------------------------------
 -- URL generators
 
@@ -65,15 +68,19 @@ graphScript laws
  ++ ["});"]
 
   where
-  minVal = minimum $ 3600 : map mkLo laws
-  maxVal = maximum $    0 : map mkHi laws
+  tightEnough law = lawStddev law < graphStddevCutoff
+  tightLaws = filter tightEnough laws
+  minVal = minimum $ 3600 : map mkLo tightLaws
+  maxVal = maximum $    0 : map mkHi tightLaws
   mkLo    law = lawMean law - 2 * lawStddev law
   mkLoMid law = lawMean law -     lawStddev law
   mkHiMid law = lawMean law +     lawStddev law
   mkHi    law = lawMean law + 2 * lawStddev law
 
-  drawOne i law =
-      "$.plot($(\"#graph"++show i++"\"), " ++ show [mkSeries law] ++ ", options);"
+  drawOne i law
+    | lawStddev law < graphStddevCutoff =
+        "$.plot($(\"#graph"++show i++"\"), " ++ show [mkSeries law] ++ ", options);"
+    | otherwise = "$(\"#graph" ++ show i++"\").hide();"
 
   mkSeries law = [[x,0] | x <- [mkLo law, mkLoMid law, lawMean law, mkHiMid law, mkHi law]]
 
