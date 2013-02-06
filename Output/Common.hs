@@ -69,7 +69,11 @@ graphScript laws
 
   where
   tightEnough law = lawStddev law < graphStddevCutoff
-  tightLaws = filter tightEnough laws
+
+  tightLaws
+    | any tightEnough laws = filter tightEnough laws
+    | otherwise            = laws
+
   minVal = minimum $ 3600 : map mkLo tightLaws
   maxVal = maximum $    0 : map mkHi tightLaws
   mkLo    law = lawMean law - 2 * lawStddev law
@@ -77,10 +81,7 @@ graphScript laws
   mkHiMid law = lawMean law +     lawStddev law
   mkHi    law = lawMean law + 2 * lawStddev law
 
-  drawOne i law
-    | lawStddev law < graphStddevCutoff =
-        "$.plot($(\"#graph"++show i++"\"), " ++ show [mkSeries law] ++ ", options);"
-    | otherwise = "$(\"#graph" ++ show i++"\").hide();"
+  drawOne i law = "$.plot($(\"#graph"++show i++"\"), " ++ show [mkSeries law] ++ ", options);"
 
   mkSeries law = [[x,0] | x <- [mkLo law, mkLoMid law, lawMean law, mkHiMid law, mkHi law]]
 
