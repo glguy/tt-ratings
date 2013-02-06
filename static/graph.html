@@ -7,6 +7,7 @@
   <title>Law Graph</title>
   <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
   <script src="/static/jquery.flot.js"></script>
+  <script src="/static/curvedLines.js"></script>
   <script>
   var names = [];
 
@@ -34,10 +35,15 @@
             var points = [];
             $.each(series,function(score,p){points[score] = [score*10, p];});
 
-            return { label: val[0], hoverable: true, data: points};
+            return { label: val[0], hoverable: true, data: points, curvedLines: {apply: true}};
           });
 
-          $.plot($("#graph"), items, { grid: { hoverable: true }, yaxis: {show: false}, xaxis: { min: 1200, max: 2700 } } );
+          $.plot($("#graph"), items, {
+                  legend: {position: "nw"},
+                  series: {curvedLines: {active: true}},
+                  grid: { hoverable: true },
+                  yaxis: {show: false},
+                  xaxis: { min: 1300, max: 2400 } } );
 
           var previousSeries = null;
           var previousPoint = null;
