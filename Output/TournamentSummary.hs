@@ -100,13 +100,13 @@ $with title <- formatTournamentTitle event
     <table .summary .data>
       <tr>
         <th>
-        <th .colgroup colspan=3>Δ
+        <th .colgroup colspan=6>Δ
         <th .colgroup colspan=3>Final
       <tr>
         <th>Name
-        <th>μ
-        <th>σ
-        <th>##
+        <th colspan=2>μ
+        <th colspan=2>σ
+        <th colspan=2>##
         <th>μ
         <th>σ
         <th>Graph
@@ -114,9 +114,9 @@ $with title <- formatTournamentTitle event
         <tr :odd i:.alt>
           <td .opponent>
             ^{playerLink (rowPlayerId row) (rowPlayer row)}
-            <td .num .delta>^{formatDelta $ on (-) lawMean   (rowFinalLaw row) (rowInitialLaw row)}
-            <td .num .delta>^{formatDelta $ on (-) lawStddev (rowFinalLaw row) (rowInitialLaw row)}
-            <td .num .delta>^{formatDelta $ fromIntegral $ rowRankChange row}
+            ^{formatDelta $ on (-) lawMean   (rowFinalLaw row) (rowInitialLaw row)}
+            ^{formatDelta $ on (-) lawStddev (rowFinalLaw row) (rowInitialLaw row)}
+            ^{formatDelta $ fromIntegral $ rowRankChange row}
           <td .num .rating>#{showRound $ lawMean   $ rowFinalLaw row}
           <td .num .rating>#{showRound $ lawStddev $ rowFinalLaw row}
             <td>
@@ -137,12 +137,12 @@ $with title <- formatTournamentTitle event
                 ^{playerLink playerId player}
             <table .matchbox .data>
               <tr>
-                <th .colgroup colspan=2>Δ
+                <th .colgroup colspan=4>Δ
                 <th .colgroup colspan=3>Adjusted Opponent
                 <th .colgroup colspan=2>
               <tr>
-                <th>μ
-                <th>σ
+                <th colspan=2>μ
+                <th colspan=2>σ
                 <th>μ
                 <th>σ
                 <th>Name
@@ -150,8 +150,8 @@ $with title <- formatTournamentTitle event
                 <th>L
               $forall (i,(opponentId,summary)) <- itoList $ Map.toList $ view summaryMatches summ
                  <tr :odd i:.alt>
-                  <td .delta>^{formatDelta $ view summaryMeanChange   summary}
-                  <td .delta>^{formatDelta $ view summaryStddevChange summary}
+                  ^{formatDelta $ view summaryMeanChange   summary}
+                  ^{formatDelta $ view summaryStddevChange summary}
                   <td .quiet .rating>#{showRound $ lawMean   $ view summaryAdjustedLaw summary}
                   <td .quiet .rating>#{showRound $ lawStddev $ view summaryAdjustedLaw summary}
                   <td .opponent>
@@ -162,13 +162,13 @@ $with title <- formatTournamentTitle event
                       <td :isZero w:.quiet .outcome>#{w}
                       <td :isZero l:.quiet .outcome>#{l}
               <tr>
-                <th colspan=2>Σ
+                <th colspan=4>Σ
                 <th colspan=3>Final
                 <th colspan=2>Σ
               <tr>
                 $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
-                  <td .delta>^{formatDelta $ lawMean   final - lawMean initial}
-                  <td .delta>^{formatDelta $ lawStddev final - lawStddev initial}
+                  ^{formatDelta $ lawMean   final - lawMean initial}
+                  ^{formatDelta $ lawStddev final - lawStddev initial}
                   <td .rating>#{showRound $ lawMean final}
                   <td .rating>#{showRound $ lawStddev final}
                   <td .opponent>^{playerLink playerId player}
@@ -188,9 +188,17 @@ formatTournamentTitle event
 
 formatDelta :: Double -> Html
 formatDelta d = case compare d 0 of
-  LT -> [shamlet| <span .negative>#{showRound (abs d)} |]
-  EQ -> [shamlet| |]
-  GT -> [shamlet| #{showRound d} |]
+  LT -> [shamlet|
+          <td .num .delta>#{showRound (abs d)}
+          <td .arrow>
+            <img src="/static/down.svg">|]
+  EQ -> [shamlet|
+          <td .delta>
+          <td .arrow>|]
+  GT -> [shamlet|
+          <td .num .delta>#{showRound d}
+          <td .arrow>
+            <img src="/static/up.svg">|]
 
 formatDeltaOp :: Double -> String
 formatDeltaOp d

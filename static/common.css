@@ -1,12 +1,26 @@
+td.arrow {
+  border-left: 0 !important;
+  padding-left: 4px !important;
+}
+
+td.delta {
+  border-right: 0 !important;
+  padding-right: 0 !important;
+}
+
 body {
-  background-color: #dddddd;
+  background-color: #f0f0f0;
   margin: 0;
   padding: 0;
 }
 
 h1 {
-  border-bottom: 1px solid black;
+  border-bottom: 1px solid  rgb(167, 201, 66);
   padding-left: 1em;
+  background-color: rgb(234, 242, 211);
+  font-weight: normal;
+  text-align: center;
+  margin-top: 0;
 }
 
 table.data {
@@ -40,18 +54,17 @@ table.data tr.alt td {
 
 div#navigation {
   text-align: center;
-  background-color: #222222;
+  background-color: rgb(167, 201, 66);
   padding: 0.5em;
 }
 
 div#navigation a {
   text-decoration: none;
   color: white;
-  font-family: sans-serif;
 }
 
 div#navigation a:hover {
-  color: #888888;
+  color: black;
 }
 
 div#navigation ul {
@@ -60,6 +73,7 @@ div#navigation ul {
 div#navigation li {
   display: inline;
   padding-right: 3em;
+  font-family: sans-serif;
 }
 
 td.num {
@@ -85,7 +99,7 @@ table.data a:hover {
 }
 
 div.bargraph {
-  width: 10em;
+  width: 22em;
   height: 1.1em;
   background-color: white;
 }
