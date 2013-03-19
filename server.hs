@@ -33,6 +33,7 @@ import Output.Formatting
 import Output.Player
 import Output.Players
 import Output.TournamentSummary
+import Output.Totals
 import Player
 import TournamentCompiler
 
@@ -69,6 +70,7 @@ appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
      , ("event/:eventId",       method GET eventHandler)
      , ("player/:playerId",     playerHandler)
      , ("players",              playersHandler)
+     , ("totals",               totalsHandler)
      , ("curves.js",            curvesHandler)
      , ("static",               serveDirectory "static")
      , ("favicon.ico",          serveFile "static/ping-pong.png")
@@ -181,6 +183,14 @@ playersHandler = do
                         return (player,a,b)
   sendHtml $ playersHtml today eventMap'
 
+totalsHandler :: Handler App App ()
+totalsHandler = do
+  players       <- getPlayers
+  totals        <- getMatchTotals
+  eventId       <- getLatestEventId
+  eventMap      <- getLawsForEvent False eventId
+  sendHtml $ totalsHtml players totals eventMap
+
 curvesHandler :: Handler App App ()
 curvesHandler = do
   eventId       <- getLatestEventId
@@ -215,17 +225,29 @@ mainPage err w l =
      return $ thePage err w l (Map.elems ps)
             $ formatMatches tz today namedMatches
 
+timeToEventDay :: UTCTime -> IO Day
+timeToEventDay time =
+  do zonedTime <- utcToLocalZonedTime time
+     let day             = localDay (zonedTimeToLocalTime zonedTime)
+{-
+         (_,_,dayOfWeek) = toWeekDate day
+         friday          = 5
+         daysInWeek      = 7
+         daysUntilFriday = (friday - dayOfWeek) `mod` daysInWeek
+         eventDay        = addDays (fromIntegral daysUntilFriday) day
+-}
+     return day
+
 saveMatch :: PlayerId -> PlayerId -> Handler App App ()
 saveMatch _matchWinner _matchLoser = do
   _matchTime <- liftIO getCurrentTime
-  today <- localDay . zonedTimeToLocalTime
-       <$> liftIO (utcToLocalZonedTime _matchTime)
 
   eventId <- do
-    mb <- getEventIdByDay today
+    _eventDay <- liftIO (timeToEventDay _matchTime)
+    mb <- getEventIdByDay _eventDay
     case mb of
       Just eventId      -> return eventId
-      Nothing           -> addEvent Event { _eventDay = today }
+      Nothing           -> addEvent Event { .. }
 
   _ <- addMatchToEvent Match{..} eventId
   _ <- rerunEvent True eventId

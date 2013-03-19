@@ -48,6 +48,11 @@ getEventIdByMatchId matchId = do
        []       -> Nothing
        Only x:_ -> Just x
 
+getMatches :: HasSqlite m => m (Map MatchId (Match PlayerId))
+getMatches = do
+  do xs <- query_ "SELECT matchId, winnerId, loserId, matchTime FROM match"
+     return $! Map.fromList [(k,v) | Only k :. v <- xs]
+
 getLatestEventId :: HasSqlite m => m EventId
 getLatestEventId = do
   do xs <- query_ "SELECT eventId FROM event ORDER BY eventDay DESC LIMIT 1"
@@ -80,6 +85,9 @@ addMatchToEvent Match{..} eventId =
        (eventId, _matchWinner, _matchLoser, _matchTime)
      MatchId `liftM` lastInsertRowId
 
+setMatchEventId :: HasSqlite m => MatchId -> EventId -> m ()
+setMatchEventId matchId eventId = execute "UPDATE match SET eventId = ? WHERE matchId = ?" (eventId, matchId)
+
 getMatchById :: HasSqlite m => MatchId -> m (Maybe (Match Player))
 getMatchById matchid =
   listToMaybe `liftM` query "SELECT w.playerName, l.playerName, matchTime\
@@ -95,6 +103,13 @@ getMatchById' matchid =
               \ FROM match\
               \ WHERE matchId = ?"
              (Only matchid)
+
+getMatchTotals :: HasSqlite m => m (Map (PlayerId, PlayerId) Int)
+getMatchTotals = do
+  xs <- query_ "SELECT winnerId, loserId, COUNT(matchId)\
+              \ FROM match\
+              \ GROUP BY winnerId, loserId"
+  return $ Map.fromList [((w,l),n) | (w,l,n) <- xs]
 
 deleteMatchById :: HasSqlite m => MatchId -> m ()
 deleteMatchById matchId =

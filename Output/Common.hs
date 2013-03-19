@@ -10,6 +10,7 @@ import qualified Data.Text as Text
 import DataStore
 import Law
 import Player
+import Output.Formatting
 
 graphStddevCutoff :: Double
 graphStddevCutoff = 150
@@ -99,3 +100,17 @@ graphScript laws
         ," colors: [\"red\"]"
         ,"};"
         ]
+
+formatDelta :: Double -> Html
+formatDelta d = case compare d 0 of
+  LT -> [shamlet|
+          <td .num .delta>#{showRound (abs d)}
+          <td .arrow>
+            <img src="/static/down.svg">|]
+  EQ -> [shamlet|
+          <td .delta>
+          <td .arrow>|]
+  GT -> [shamlet|
+          <td .num .delta>#{showRound d}
+          <td .arrow>
+            <img src="/static/up.svg">|]

@@ -185,22 +185,3 @@ formatTournamentTitle :: Event -> String
 formatTournamentTitle event
   = "Tournament Results - "
  ++ formatLongDay (view eventDay event)
-
-formatDelta :: Double -> Html
-formatDelta d = case compare d 0 of
-  LT -> [shamlet|
-          <td .num .delta>#{showRound (abs d)}
-          <td .arrow>
-            <img src="/static/down.svg">|]
-  EQ -> [shamlet|
-          <td .delta>
-          <td .arrow>|]
-  GT -> [shamlet|
-          <td .num .delta>#{showRound d}
-          <td .arrow>
-            <img src="/static/up.svg">|]
-
-formatDeltaOp :: Double -> String
-formatDeltaOp d
-  | d >= 0 = " + " ++ showRound d
-  | otherwise = " - " ++ showRound (- d)

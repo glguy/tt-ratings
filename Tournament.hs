@@ -4,10 +4,9 @@
 module Tournament where
 
 import Control.Lens
-import Data.List (elemIndex, foldl', sortBy)
+import Data.List (foldl')
 import Data.Map (Map)
-import Data.Maybe (fromJust, fromMaybe)
-import Data.Ord (comparing)
+import Data.Maybe (fromMaybe)
 import Data.Time.Calendar
 import Law
 import Match

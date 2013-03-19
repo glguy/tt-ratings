@@ -9,6 +9,7 @@ table.results > tbody > tr > td {
 }
 
 div.resultbox span.playername {
+  text-align: center;
   display: block;
   font-size: larger;
   font-weight: bold;

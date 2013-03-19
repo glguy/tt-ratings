@@ -16,7 +16,7 @@ cabal-version:       >=1.8
 
 executable tt-server
   main-is:             server.hs
-  ghc-options:         -Wall
+  ghc-options:         -Wall -O2
   build-depends:       base,
                        time,
                        directory,

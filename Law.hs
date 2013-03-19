@@ -10,7 +10,7 @@ import Statistics.Distribution.Normal (normalDistr)
 data Law = Law { lawRaw :: !(UArray Int Double)
                , lawMean, lawStddev :: !Double }
 
-data Outcome = Outcome { _outcomeWins, _outcomeLosses :: Int }
+data Outcome = Outcome { _outcomeWins, _outcomeLosses :: !Int }
   deriving (Eq, Show)
 
 makeLenses ''Outcome
