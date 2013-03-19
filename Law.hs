@@ -119,7 +119,7 @@ timeEffect days law
              ++ [ sum [lawAt law x * timeAt y | x <- omega, y <- [3600-x,3610-x..3600]] ]
   where
   timeArray :: UArray Int Double
-  timeArray = listArray (-360,360) $ mkNormal (-3600) 3600 0 (70 * fromIntegral days / 365)
+  timeArray = listArray (-360,360) $ mkNormal (-3600) 3600 0 (sqrt (70*70 * fromIntegral days / 365))
   timeAt y = timeArray ! (y `div` 10)
 
 lawScore :: Law -> Double
