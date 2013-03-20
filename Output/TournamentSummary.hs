@@ -36,8 +36,9 @@ buildSummaryRows ::
   Map PlayerId Player ->
   Map PlayerId (Day, Law) ->
   Map PlayerId (PlayerSummary PlayerId) ->
+  Day ->
   [SummaryTableRow]
-buildSummaryRows players laws changes = rows
+buildSummaryRows players laws changes today = rows
   where
   rows          = sortBy cmpRow $ map mkSummaryRow $ Map.toList beforeAndAfter
   cmpRow        = flip (comparing (lawScore . rowFinalLaw))
@@ -47,7 +48,9 @@ buildSummaryRows players laws changes = rows
   beforeAndAfter = fmap changeCase changes `Map.union` fmap sameCase laws
     where
     changeCase c = (view summaryInitialLaw c, view summaryFinalLaw c)
-    sameCase (_,law) = (law,law)
+    sameCase (day,law) = (degradedLaw,degradedLaw)
+      where
+      degradedLaw = degradeLaw today day law
 
   -- Score index in these list corresponds to initial and final "rank"
   initialLaws = mkOrderedScoreList (fmap fst beforeAndAfter)
@@ -94,7 +97,7 @@ $with title <- formatTournamentTitle event
         ^{detailed}
 |]
   where
-  sorted     = buildSummaryRows players laws results
+  sorted     = buildSummaryRows players laws results (view eventDay event)
   sortedLaws = map rowFinalLaw sorted
   summary = [shamlet|
     <table .summary .data>

@@ -35,6 +35,7 @@ import Output.Players
 import Output.TournamentSummary
 import Output.Totals
 import Player
+import Tournament (degradeLaw)
 import TournamentCompiler
 
 import Snap
@@ -178,9 +179,9 @@ playersHandler = do
   today         <- localDay <$> getLocalTime
   eventMap      <- getLawsForEvent False eventId
   eventMap'     <- maybe (fail "Unknown player id in event") return
-                 $ ifor eventMap $ \i (a,b) ->
+                 $ ifor eventMap $ \i (day,law) ->
                      do player <- Map.lookup i players
-                        return (player,a,b)
+                        return (player,day,degradeLaw today day law)
   sendHtml $ playersHtml today eventMap'
 
 totalsHandler :: Handler App App ()
