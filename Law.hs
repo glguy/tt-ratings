@@ -4,6 +4,7 @@ module Law where
 import Control.Lens
 import Data.Array.Unboxed
 import Data.List
+import Data.Monoid
 import Statistics.Distribution (complCumulative, cumulative)
 import Statistics.Distribution.Normal (normalDistr)
 
@@ -14,6 +15,10 @@ data Outcome = Outcome { _outcomeWins, _outcomeLosses :: !Int }
   deriving (Eq, Show)
 
 makeLenses ''Outcome
+
+instance Monoid Outcome where
+  mappend (Outcome w1 l1) (Outcome w2 l2) = Outcome (w1+w2) (l1+l2)
+  mempty = Outcome 0 0
 
 data LawUpdate = LawUpdate
   { playerLaw , opponentLaw :: Law

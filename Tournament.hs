@@ -7,6 +7,7 @@ import Control.Lens
 import Data.List (foldl')
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
+import Data.Monoid (mempty)
 import Data.Time.Calendar
 import Law
 import Match
@@ -26,10 +27,6 @@ data MatchSummary = MatchSummary
 makeLenses ''PlayerSummary
 makeLenses ''MatchSummary
 
--- | Outcome without any wins or loses.
-noOutcome :: Outcome
-noOutcome = Outcome 0 0
-
 -- | Compute a map of outcomes where the first key
 -- is the player's name, the second key is the opponent's
 -- name and the outcome is from the point of view of the
@@ -37,7 +34,7 @@ noOutcome = Outcome 0 0
 matchOutcomes :: Ord name => [Match name] -> Map name (Map name Outcome)
 matchOutcomes = foldl' addMatch Map.empty
   where
-  look w l = at w . defaultEmpty . at l . non noOutcome
+  look w l = at w . defaultEmpty . at l . non mempty
 
   addMatch outcomes match = updateWinner match . updateLoser match $ outcomes
   updateWinner match = look (view matchWinner match) (view matchLoser  match) . outcomeWins   +~ 1
