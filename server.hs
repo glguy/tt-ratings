@@ -14,6 +14,9 @@ import Data.Ord (comparing)
 import Data.Text (Text)
 import Data.Text.Read
 import Data.Time
+import NewTTRS.Law (lawElems)
+import NewTTRS.Match
+import NewTTRS.Tournament (degradeLaw)
 import System.Locale
 import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
 import Text.Hamlet (shamlet, Html)
@@ -24,8 +27,6 @@ import qualified Data.Text.Encoding as Enc
 
 import DataStore
 import Event
-import Law (lawElems)
-import Match
 import Output.Common
 import Output.Events
 import Output.ExportMatches
@@ -35,7 +36,6 @@ import Output.Players
 import Output.TournamentSummary
 import Output.Totals
 import Player
-import Tournament (degradeLaw)
 import TournamentCompiler
 
 import Snap

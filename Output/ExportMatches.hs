@@ -4,11 +4,11 @@ import Control.Applicative
 import Control.Lens
 import Data.Traversable
 import Data.Int (Int64)
+import NewTTRS.Match
 import qualified Data.Map as Map
 
 import DataStore
 import Event
-import Match
 
 import Snap.Snaplet.SqliteSimple
 

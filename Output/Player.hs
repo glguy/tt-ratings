@@ -1,8 +1,9 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Output.Player where
 
-import Text.Hamlet
 import Control.Lens
+import NewTTRS.Law
+import Text.Hamlet
 import qualified Data.Map as Map
 
 import Event
@@ -10,7 +11,6 @@ import Output.Formatting
 import Output.Common
 import DataStore
 import Player
-import Law
 
 import Snap.Snaplet.SqliteSimple
 

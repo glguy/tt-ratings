@@ -10,16 +10,16 @@ import Data.Map (Map)
 import Data.Maybe (fromJust)
 import Data.Time.Calendar (Day)
 import Data.Ord (comparing)
+import NewTTRS.Law
+import NewTTRS.Tournament
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
 
 import DataStore
 import Event
-import Law
 import Output.Common
 import Output.Formatting
 import Player
-import Tournament
 
 tournamentColumns :: Int
 tournamentColumns = 2

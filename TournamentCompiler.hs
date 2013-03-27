@@ -5,12 +5,12 @@ import Control.Applicative
 import Control.Lens
 import Control.Monad.Reader
 import Data.Map (Map)
+import NewTTRS.Tournament
 import Snap.Snaplet.SqliteSimple (HasSqlite)
 import qualified Data.Map as Map
 
 import DataStore
 import Event
-import Tournament
 
 generateTournamentSummary :: (Applicative m, HasSqlite m) => Bool -> EventId ->
   m (Event, Map PlayerId (PlayerSummary PlayerId))

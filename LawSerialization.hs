@@ -1,8 +1,8 @@
 module LawSerialization where
 
-import Law
 import Data.List.Split (splitOn)
 import Data.Array.Unboxed (listArray)
+import NewTTRS.Law
 
 serializeLaw :: Law -> String
 serializeLaw law

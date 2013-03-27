@@ -6,11 +6,11 @@
 module DataStore where
 
 import Event
-import Law
-import Match
 import Player
-
 import LawSerialization
+
+import NewTTRS.Law
+import NewTTRS.Match
 
 import Control.Applicative
 import Control.Lens

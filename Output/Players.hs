@@ -6,11 +6,11 @@ import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Time.Calendar
+import NewTTRS.Law
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
 
 import DataStore
-import Law
 import Output.Common
 import Output.Formatting
 import Player

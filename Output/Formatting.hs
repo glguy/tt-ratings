@@ -1,5 +1,6 @@
 module Output.Formatting where
 
+import Numeric (showFFloat)
 import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate
 
@@ -61,4 +62,6 @@ formatLongDay day
   (_,_,weekdayNum) = toWeekDate day
 
 showRound :: Double -> String
-showRound x = show (round x :: Integer)
+showRound x
+  | abs x < 1 = showFFloat (Just 1) x ""
+  | otherwise = show (round x :: Integer)

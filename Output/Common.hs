@@ -3,12 +3,12 @@ module Output.Common where
 
 import Control.Lens
 import Data.Text (Text)
+import NewTTRS.Law
 import Text.Blaze.Html (preEscapedToHtml)
 import Text.Hamlet
 import qualified Data.Text as Text
 
 import DataStore
-import Law
 import Player
 import Output.Formatting
 

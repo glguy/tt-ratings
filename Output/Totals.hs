@@ -3,18 +3,18 @@ module Output.Totals where
 
 import Control.Lens
 import Data.List (sortBy)
-import Data.Ratio
 import Data.Map (Map)
 import Data.Maybe (fromJust)
+import Data.Ord (comparing)
+import Data.Ratio
+import Data.Time.Calendar (Day)
+import NewTTRS.Law
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
-import Data.Ord (comparing)
-import Data.Time.Calendar (Day)
 
 import DataStore
 import Output.Common
 import Player
-import Law
 
 tournamentColumns :: Int
 tournamentColumns = 2
