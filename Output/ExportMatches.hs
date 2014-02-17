@@ -18,8 +18,8 @@ exportMatches =
      for (Map.toList events) $ \(eventId,event) ->
        do matches <- fmap Map.elems $ getMatchesByEventId eventId
           return ( show (view eventDay  event)
-                 , [ ( view (matchWinner . unwrapping PlayerId) match
-                     , view (matchLoser  . unwrapping PlayerId) match
+                 , [ ( view (matchWinner . _Wrapping PlayerId) match
+                     , view (matchLoser  . _Wrapping PlayerId) match
                      )
                    | match <- matches
                    ]

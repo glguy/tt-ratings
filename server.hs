@@ -8,7 +8,7 @@ import Control.Concurrent.MVar
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.Foldable (toList)
-import Data.List (sortBy)
+import Data.List (sortBy,sort)
 import Data.Map (Map)
 import Data.Ord (comparing)
 import Data.Text (Text)
@@ -223,7 +223,7 @@ mainPage err w l =
              Just eventId       -> getMatchesByEventId eventId
      namedMatches <- maybe (fail "unknown player id") return
                    $ (traverse . traverse) (flip Map.lookup ps) ms
-     return $ thePage err w l (Map.elems ps)
+     return $ thePage err w l (sort (Map.elems ps))
             $ formatMatches tz today namedMatches
 
 timeToEventDay :: UTCTime -> IO Day

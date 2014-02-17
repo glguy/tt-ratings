@@ -11,6 +11,7 @@ import Data.Maybe (fromJust)
 import Data.Time.Calendar (Day)
 import Data.Ord (comparing)
 import NewTTRS.Law
+import NewTTRS.Outcome
 import NewTTRS.Tournament
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
