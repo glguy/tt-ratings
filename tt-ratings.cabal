@@ -24,7 +24,7 @@ executable tt-server
                        blaze-html,
                        hamlet >= 1.1.4,
                        containers,
-                       lens   >= 3.8,
+                       lens   == 4.0.*,
                        array,
                        split,
                        statistics,

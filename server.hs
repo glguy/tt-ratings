@@ -8,18 +8,15 @@ import Control.Concurrent.MVar
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.Foldable (toList)
-import Data.List (sortBy,sort)
 import Data.Map (Map)
-import Data.Ord (comparing)
 import Data.Text (Text)
 import Data.Text.Read
 import Data.Time
 import NewTTRS.Law (lawElems)
 import NewTTRS.Match
 import NewTTRS.Tournament (degradeLaw)
-import System.Locale
 import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
-import Text.Hamlet (shamlet, Html)
+import Text.Hamlet (Html)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -27,10 +24,10 @@ import qualified Data.Text.Encoding as Enc
 
 import DataStore
 import Event
+import MatchEntry (matchEntryPage)
 import Output.Common
 import Output.Events
 import Output.ExportMatches
-import Output.Formatting
 import Output.Player
 import Output.Players
 import Output.TournamentSummary
@@ -46,8 +43,6 @@ data App = App
   { _db :: Snaplet Sqlite
   , _tournamentReports :: MVar (Map EventId Html)
   }
-
-data RunState = Running | Rerun | Idle
 
 makeClassy ''App
 -- class HasApp t where
@@ -86,17 +81,34 @@ main = serveSnaplet defaultConfig appInit
 matchPostHandler :: Handler App App ()
 matchPostHandler = do
   winner <- getParam' "winner"
+  winsText <- getParam' "wins"
   loser  <- getParam' "loser"
+  lossesText <- getParam' "losses"
 
-  let m `check` e = maybe failure return =<< m
-        where
-        failure = do
-            sendHtml   =<< mainPage (Just e) winner loser
+  let m `check` e = maybe (failure e) return =<< m
+      failure txt = do
+            sendHtml   =<< matchEntryPage (Just txt) winner winsText loser lossesText
             finishWith =<< getResponse
+
+  let parseOutcome txt =
+          case decimal txt of
+            Right (x,xs) | Text.null xs -> return x
+            _                           -> failure "Invalid outcomes"
+
+  wins   <- parseOutcome winsText
+  losses <- parseOutcome lossesText
+
+  when (   wins < 0
+        || losses < 0
+        || wins > 9                 -- sanity
+        || losses > 9               -- sanity
+        || losses == 0 && wins == 0 -- no-op
+       )
+    (failure "Invalid outcomes")
 
   winnerId <- getPlayerIdByName winner `check` "Unknown winner"
   loserId  <- getPlayerIdByName loser  `check` "Unknown loser"
-  saveMatch winnerId loserId
+  saveMatch winnerId wins loserId losses
   redirect "/"
 
 -- The user clicked one of the buttons next to a match
@@ -108,13 +120,20 @@ matchopPostHandler = do
   matchId <- MatchId <$> getNumParam "matchId"
   case action of
     "delete"    -> deleteMatchHandler    matchId
-    "duplicate" -> duplicateMatchHandler matchId
+    "copy"      -> duplicateMatchHandler matchId
+    "upset"     -> upsetMatchHandler     matchId
     _           -> fail "Unknown action"
 
 duplicateMatchHandler :: MatchId -> Handler App App ()
 duplicateMatchHandler matchId = do
   match <- getMatchById' matchId `onNothing` "Unknown match"
-  saveMatch (view matchWinner match) (view matchLoser match)
+  saveMatch (view matchWinner match) 1 (view matchLoser match) 0
+  redirect "/"
+
+upsetMatchHandler :: MatchId -> Handler App App ()
+upsetMatchHandler matchId = do
+  match <- getMatchById' matchId `onNothing` "Unknown match"
+  saveMatch (view matchWinner match) 0 (view matchLoser match) 1
   redirect "/"
 
 deleteMatchHandler :: MatchId -> Handler App App ()
@@ -205,26 +224,7 @@ curvesHandler = do
 
 
 defaultHandler :: Handler App App ()
-defaultHandler = sendHtml =<< mainPage Nothing "" ""
-
-mainPage ::
-  Maybe Text {- ^ error message -} ->
-  Text {- ^ initial winner text -} ->
-  Text {- ^ initial loser  text -} ->
-  Handler App App Html
-mainPage err w l =
-  do now <- liftIO getZonedTime
-     let today = localDay (zonedTimeToLocalTime now)
-         tz    = zonedTimeZone now
-     mb <- getEventIdByDay today
-     ps <- getPlayers
-     ms <- case mb of
-             Nothing            -> return Map.empty
-             Just eventId       -> getMatchesByEventId eventId
-     namedMatches <- maybe (fail "unknown player id") return
-                   $ (traverse . traverse) (flip Map.lookup ps) ms
-     return $ thePage err w l (sort (Map.elems ps))
-            $ formatMatches tz today namedMatches
+defaultHandler = sendHtml =<< matchEntryPage Nothing "" "1" "" "0"
 
 timeToEventDay :: UTCTime -> IO Day
 timeToEventDay time =
@@ -239,8 +239,8 @@ timeToEventDay time =
 -}
      return day
 
-saveMatch :: PlayerId -> PlayerId -> Handler App App ()
-saveMatch _matchWinner _matchLoser = do
+saveMatch :: PlayerId -> Int -> PlayerId -> Int -> Handler App App ()
+saveMatch winner wins loser losses = do
   _matchTime <- liftIO getCurrentTime
 
   eventId <- do
@@ -250,7 +250,10 @@ saveMatch _matchWinner _matchLoser = do
       Just eventId      -> return eventId
       Nothing           -> addEvent Event { .. }
 
-  _ <- addMatchToEvent Match{..} eventId
+  replicateM_ wins
+     (addMatchToEvent Match{ _matchWinner = winner, _matchLoser = loser, ..} eventId)
+  replicateM_ losses
+     (addMatchToEvent Match{ _matchWinner = loser, _matchLoser = winner, ..} eventId)
   _ <- rerunEvent True eventId
   return ()
 
@@ -296,65 +299,6 @@ getNumParam name = do
 --------------------------------------------------------------------------------
 
 
-
-formatMatch :: TimeZone -> Int -> MatchId -> Match Player -> Html
-formatMatch tz i (MatchId mid) match = [shamlet|
-  <tr :odd i:.alt>
-    <td>#{t}
-    <td>#{w}
-    <td>#{l}
-    <td>
-      <form .deleteform action="/matchop" method=post>
-        <input type=hidden name=matchId value=#{show mid}>
-        <input .deletebutton type=submit name=action value=duplicate>
-        <input .deletebutton type=submit name=action value=delete>
-|]
-  where
-  t = view (matchTime   . to (formatTime defaultTimeLocale "%X" . utcToLocalTime tz)) match
-  w = view (matchWinner . playerName) match
-  l = view (matchLoser  . playerName) match
-
-formatMatches :: TimeZone -> Day -> Map MatchId (Match Player) -> Html
-formatMatches tz d xs
-  | Map.null xs = return ()
-  | otherwise = [shamlet|
-<h2>Matches for #{formatLongDay d}
-  <table>
-    <tr>
-      <th>Time
-      <th>Winner
-      <th>Loser
-      <th>Actions
-    $forall (i,(fn,m)) <- itoList $ sortBy (flip byTime) $ Map.toList xs
-      ^{formatMatch tz i fn m}
-|]
-  where
-  byTime = comparing (view matchTime . snd)
-
-thePage :: Maybe Text -> Text -> Text -> [Player] -> Html -> Html
-thePage err w l ps table = [shamlet|
-<html lang=en>
-  <head>
-    ^{metaTags}
-    <title>Ping Pong Results
-    <link rel=stylesheet type=text/css href=/static/common.css>
-    <link rel=stylesheet type=text/css href=/static/style.css>
-  <body>
-    ^{navigationLinks}
-    <div .entry>
-      <form action="/match" method=POST>
-        <label for=winner>Winner:
-        <input autocomplete=off list=players name=winner #winner value=#{w}>
-        <label for=loser>Loser:
-        <input autocomplete=off list=players name=loser  #loser value=#{l}>
-        <datalist #players>
-          $forall p <- ps
-            <option value=#{view playerName p}>
-        <input type=submit #submit value=Record>
-    $maybe errMsg <- err
-      <div #errorMessage>#{errMsg}
-    ^{table}
-|]
 
 onNothing :: Monad m => m (Maybe a) -> String -> m a
 onNothing m str = maybe (fail str) return =<< m

@@ -5,6 +5,7 @@ body {
 
 div.entry {
 	margin-top: 10em;
+        color: #666;
 }
 
 div.entry input {
@@ -44,6 +45,14 @@ input#winner, input#loser {
   background-color: white;
   border: 1px solid black;
   color: black;
+}
+
+input.outcomeNumber {
+  width: 2em;
+  border: 1px solid black;
+  background-color: white;
+  color: black;
+  text-align: center;
 }
 
 label {
