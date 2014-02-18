@@ -12,6 +12,10 @@ div.entry input {
 	font-size: x-large;
 }
 
+#winsPlural {
+	visibility: hidden;
+}
+
 table {
 	margin-left: auto;
 	margin-right: auto;

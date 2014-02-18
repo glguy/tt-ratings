@@ -49,19 +49,22 @@ thePage err w wins l losses ps table = [shamlet|
     <title>Ping Pong Results
     <link rel=stylesheet type=text/css href=/static/common.css>
     <link rel=stylesheet type=text/css href=/static/style.css>
+    <script type=text/javascript src=/static/entry.js>
   <body>
     ^{navigationLinks}
     <div .entry>
       <form action="/match" method=POST>
         <input autocomplete=off list=players name=winner #winner value=#{w}>
         won
-        <input .outcomeNumber autocomplete=off name=wins maxlength=1 value=#{wins}>
-        game(s)
+        <input type=text .outcomeNumber autocomplete=off name=wins maxlength=1 value=#{wins} onkeyup="numberchange(this.value, 'winsPlural');">
+        game#
+        <span #winsPlural>s
         <br>
         <input autocomplete=off list=players name=loser  #loser value=#{l}>
         won
-        <input .outcomeNumber autocomplete=off name=losses maxlength=1 value=#{losses}>
-        game(s)
+        <input type=text .outcomeNumber autocomplete=off name=losses maxlength=1 value=#{losses}  onkeyup="numberchange(this.value, 'lossesPlural');">
+        game#
+        <span #lossesPlural>s
         <br>
         <input type=submit #submit value="Save Match">
         <datalist #players>
