@@ -63,5 +63,6 @@ formatLongDay day
 
 showRound :: Double -> String
 showRound x
+  | x == 0    = "0"
   | abs x < 1 = showFFloat (Just 1) x ""
   | otherwise = show (round x :: Integer)

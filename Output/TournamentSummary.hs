@@ -144,6 +144,7 @@ $with title <- formatTournamentTitle event
                 <th .colgroup colspan=4>Δ
                 <th .colgroup colspan=3>Adjusted Opponent
                 <th .colgroup colspan=2>
+                <th .colgroup colspan=2>%
               <tr>
                 <th colspan=2>μ
                 <th colspan=2>σ
@@ -152,6 +153,8 @@ $with title <- formatTournamentTitle event
                 <th>Name
                 <th>W
                 <th>L
+                <th>Act
+                <th>Exp
               $forall (i,(opponentId,summary)) <- itoList $ Map.toList $ view summaryMatches summ
                  <tr :odd i:.alt>
                   ^{formatDelta $ view summaryMeanChange   summary}
@@ -165,10 +168,12 @@ $with title <- formatTournamentTitle event
                     $with (w,l) <- (view outcomeWins o, view outcomeLosses o)
                       <td :isZero w:.quiet .outcome>#{w}
                       <td :isZero l:.quiet .outcome>#{l}
+                      <td .quiet .outcome>#{showRound $ pct w $ w + l}
+                  <td .quiet .rating>#{showRound $ 100 * chanceToWin (view summaryInitialLaw summ) (view summaryAdjustedLaw summary)}
               <tr>
                 <th colspan=4>Σ
                 <th colspan=3>Final
-                <th colspan=2>Σ
+                <th colspan=4>Σ
               <tr>
                 $with (initial,final) <- (view summaryInitialLaw summ, view summaryFinalLaw summ)
                   ^{formatDelta $ lawMean   final - lawMean initial}
@@ -176,14 +181,18 @@ $with title <- formatTournamentTitle event
                   <td .rating>#{showRound $ lawMean final}
                   <td .rating>#{showRound $ lawStddev final}
                   <td .opponent>^{playerLink playerId player}
-                  $with ws <- countWins summ
-                    <td .outcome :isZero ws:.quiet>#{ws}
-                  $with ls <- countLosses summ
-                    <td .outcome :isZero ls:.quiet>#{ls}
+                  $with (w,l) <- (countWins summ, countLosses summ)
+                    <td .outcome :isZero w:.quiet>#{w}
+                    <td .outcome :isZero l:.quiet>#{l}
+                    <td .quiet>#{showRound $ pct w $ w + l}
+                  <td .quiet>-
 |]
 
 isZero :: Int -> Bool
 isZero z = z == 0
+
+pct :: Int -> Int -> Double
+pct x y = 100 * fromIntegral x / fromIntegral y
 
 formatTournamentTitle :: Event -> String
 formatTournamentTitle event
