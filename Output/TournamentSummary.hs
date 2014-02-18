@@ -169,7 +169,7 @@ $with title <- formatTournamentTitle event
                       <td :isZero w:.quiet .outcome>#{w}
                       <td :isZero l:.quiet .outcome>#{l}
                       <td .quiet .outcome>#{showRound $ pct w $ w + l}
-                  <td .quiet .rating>#{showRound $ 100 * chanceToWin (view summaryInitialLaw summ) (view summaryAdjustedLaw summary)}
+                  <td .quiet .rating>#{showRound $ times 100 $ chanceToWin (view summaryInitialLaw summ) (view summaryAdjustedLaw summary)}
               <tr>
                 <th colspan=4>Σ
                 <th colspan=3>Final
@@ -193,6 +193,9 @@ isZero z = z == 0
 
 pct :: Int -> Int -> Double
 pct x y = 100 * fromIntegral x / fromIntegral y
+
+times :: Num a => a -> a -> a
+times x y = x * y
 
 formatTournamentTitle :: Event -> String
 formatTournamentTitle event
