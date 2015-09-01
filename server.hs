@@ -1,11 +1,14 @@
 {-# LANGUAGE RecordWildCards, QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Main where
 
 import Control.Applicative
-import Control.Concurrent.MVar
+import Data.IORef
 import Control.Lens
+import Control.Monad (liftM, replicateM_, when, unless)
+import Control.Monad.State (get)
 import Control.Monad.IO.Class
 import Data.Foldable (toList)
 import Data.Map (Map)
@@ -41,7 +44,7 @@ import Snap.Snaplet.SqliteSimple
 
 data App = App
   { _db :: Snaplet Sqlite
-  , _tournamentReports :: MVar (Map EventId Html)
+  , _tournamentReports :: IORef (Map EventId Html)
   }
 
 makeClassy ''App
@@ -49,12 +52,12 @@ makeClassy ''App
 --  app :: Lens' t App
 --  db  :: Lens' t (Snaplet Sqlite)
 
-instance HasApp app => HasSqlite (Handler b app) where getSqliteState = with db get
+instance HasSqlite (Handler b App) where getSqliteState = with db get
 
 appInit :: SnapletInit App App
 appInit = makeSnaplet "tt-ratings" "Ping pong ratings application" Nothing $ do
   _db <- embedSnaplet "db" db sqliteInit
-  _tournamentReports <- liftIO $ newMVar Map.empty
+  _tournamentReports <- liftIO (newIORef Map.empty)
 
   addRoutes
      [ ("match",                method POST matchPostHandler)
@@ -154,7 +157,7 @@ rerunEvent changed eventId = do
   players        <- getPlayers
   let html       =  tournamentHtml players event report allLaws
   var            <- use tournamentReports
-  liftIO $ modifyMVar_ var $ \cache -> return $ cache & at eventId ?~ html
+  liftIO (modifyIORef var (at eventId ?~ html))
   return html
 
 exportPlayersHandler :: Handler App App ()
@@ -179,7 +182,7 @@ eventHandler :: Handler App App ()
 eventHandler = do
   eventId <- EventId <$> getNumParam "eventId"
   var     <- use tournamentReports
-  cache   <- liftIO $ readMVar var
+  cache   <- liftIO (readIORef var)
   html    <- case view (at eventId) cache of
                Just html -> return html
                Nothing   -> rerunEvent False eventId
@@ -213,7 +216,12 @@ totalsHandler = do
 
 curvesHandler :: Handler App App ()
 curvesHandler = do
-  eventId       <- getLatestEventId
+  chosenEventId <- getOptParam "eventid"
+  eventId       <- case chosenEventId of
+                     Just x -> case decimal x of
+                                 Right (n,xs) | Text.null xs -> return (EventId n)
+                                 _                           -> fail "Bad event id"
+                     Nothing -> getLatestEventId
   players       <- getPlayers
   eventMap      <- getLawsForEvent False eventId
   curveData     <- maybe (fail "Unknown player id in event") (return . toList)
@@ -227,17 +235,7 @@ defaultHandler :: Handler App App ()
 defaultHandler = sendHtml =<< matchEntryPage Nothing "" "1" "" "0"
 
 timeToEventDay :: UTCTime -> IO Day
-timeToEventDay time =
-  do zonedTime <- utcToLocalZonedTime time
-     let day             = localDay (zonedTimeToLocalTime zonedTime)
-{-
-         (_,_,dayOfWeek) = toWeekDate day
-         friday          = 5
-         daysInWeek      = 7
-         daysUntilFriday = (friday - dayOfWeek) `mod` daysInWeek
-         eventDay        = addDays (fromIntegral daysUntilFriday) day
--}
-     return day
+timeToEventDay time = fmap (localDay . zonedTimeToLocalTime) (utcToLocalZonedTime time)
 
 saveMatch :: PlayerId -> Int -> PlayerId -> Int -> Handler App App ()
 saveMatch winner wins loser losses = do
@@ -285,6 +283,9 @@ getParam' name = do
   case mb of
     Nothing -> fail ("Missing parameter: " ++ show name)
     Just x  -> return $ Enc.decodeUtf8 x
+
+getOptParam :: MonadSnap m => Text -> m (Maybe Text)
+getOptParam name = fmap (fmap Enc.decodeUtf8) (getParam (Enc.encodeUtf8 name))
 
 getNumParam :: (Integral a, MonadSnap m) => Text -> m a
 getNumParam name = do

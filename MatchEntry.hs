@@ -1,4 +1,10 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE QuasiQuotes #-}
+
+#ifndef MIN_VERSION_time
+#define MIN_VERSION_time(x,y,z) 1
+#endif
+
 module MatchEntry (matchEntryPage) where
 
 import Control.Monad.IO.Class
@@ -7,7 +13,6 @@ import Data.List (sort, sortBy)
 import Data.Ord (comparing)
 import Control.Lens.Combinators
 import Data.Time
-import System.Locale (defaultTimeLocale)
 import Text.Hamlet (shamlet, Html)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -18,6 +23,10 @@ import DataStore
 import Player (Player, playerName)
 import Output.Common (metaTags, navigationLinks)
 import Output.Formatting (formatLongDay)
+
+#if !(MIN_VERSION_time(1,5,0))
+import System.Locale (defaultTimeLocale)
+#endif
 
 matchEntryPage ::
   (HasSqlite m, MonadIO m) =>
