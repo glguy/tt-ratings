@@ -4,19 +4,18 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Main where
 
-import Control.Applicative
-import Data.IORef
-import Control.Lens
+import Data.IORef ( IORef, modifyIORef, newIORef, readIORef )
+import Control.Lens ( use, view, (?~), makeClassy, op, ifor, At(at) )
 import Control.Monad (liftM, replicateM_, when, unless)
 import Control.Monad.State (get)
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class ( MonadIO(..) )
 import Data.Foldable (toList)
 import Data.Map (Map)
 import Data.Text (Text)
-import Data.Text.Read
-import Data.Time
+import Data.Text.Read ( decimal )
+import Data.Time ( Day, LocalTime(localDay), UTCTime, ZonedTime(zonedTimeToLocalTime), getZonedTime, utcToLocalZonedTime, getCurrentTime )
 import NewTTRS.Law (lawElems)
-import NewTTRS.Match
+import NewTTRS.Match ( matchLoser, matchWinner, Match(_matchTime, Match, _matchWinner, _matchLoser) )
 import NewTTRS.Tournament (degradeLaw)
 import Text.Blaze.Html.Renderer.Utf8 (renderHtmlBuilder)
 import Text.Hamlet (Html)
@@ -25,22 +24,22 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Enc
 
-import DataStore
-import Event
+import DataStore ( MatchId(..), PlayerId(..), EventId(..), getPlayers, getEvents, addEvent, getEventIdByMatchId, getLatestEventId, getEventIdByDay, getEventById, addMatchToEvent, getMatchById', getMatchTotals, deleteMatchById, getPlayerIdByName, getLawsForEvent )
+import Event ( Event(_eventDay, Event), eventDay )
 import MatchEntry (matchEntryPage)
-import Output.Common
-import Output.Events
-import Output.ExportMatches
-import Output.Player
-import Output.Players
-import Output.TournamentSummary
-import Output.Totals
-import Player
-import TournamentCompiler
+import Output.Common ( mkEventUrl )
+import Output.Events ( eventsPage )
+import Output.ExportMatches ( exportMatches )
+import Output.Player ( playerPage )
+import Output.Players ( playersHtml )
+import Output.TournamentSummary ( tournamentHtml )
+import Output.Totals ( totalsHtml )
+import Player ( playerName )
+import TournamentCompiler ( generateTournamentSummary )
 
 import Snap
-import Snap.Util.FileServe
-import Snap.Snaplet.SqliteSimple
+import Snap.Util.FileServe ( serveDirectory, serveFile )
+import Snap.Snaplet.SqliteSimple ( sqliteInit, HasSqlite(..), Sqlite )
 
 data App = App
   { _db :: Snaplet Sqlite
