@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Output.Common where
 
-import Control.Lens
+import Control.Lens ( view, FunctorWithIndex(imap) )
 import Data.Text (Text)
-import NewTTRS.Law
+import NewTTRS.Law ( Law(lawMean, lawStddev) )
 import Text.Blaze.Html (preEscapedToHtml)
-import Text.Hamlet
+import Text.Hamlet ( Html, shamlet )
 import qualified Data.Text as Text
 
-import DataStore
-import Player
-import Output.Formatting
+import DataStore ( PlayerId(..), EventId(..) )
+import Player ( Player, playerName )
+import Output.Formatting ( showRound )
 
 graphStddevCutoff :: Double
 graphStddevCutoff = 150

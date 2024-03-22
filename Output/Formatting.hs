@@ -1,8 +1,8 @@
 module Output.Formatting where
 
 import Numeric (showFFloat)
-import Data.Time.Calendar
-import Data.Time.Calendar.WeekDate
+import Data.Time.Calendar ( Day, toGregorian )
+import Data.Time.Calendar.WeekDate ( toWeekDate )
 
 formatShortDay :: Day -> String
 formatShortDay day = formatShortMonth m ++ " " ++ show d

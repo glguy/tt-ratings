@@ -1,21 +1,21 @@
 {-# LANGUAGE RecordWildCards #-}
 module TournamentCompiler where
 
-import Control.Applicative
-import Control.Lens
-import Control.Monad.Reader
+import Control.Monad ( when )
+import Control.Lens ( view, ifor_ )
 import Data.Map (Map)
-import NewTTRS.Tournament
+import NewTTRS.Tournament ( PlayerSummary, summaryFinalLaw, degradeLaw, evaluateTournament )
 import Snap.Snaplet.SqliteSimple (HasSqlite)
 import qualified Data.Map as Map
 
-import DataStore
-import Event
+import DataStore ( PlayerId, EventId, getEventById, getMatchesByEventId, getLawsForEvent, clearLawsForEvent, addLaw )
+import Event ( Event, eventDay )
 
-generateTournamentSummary :: (Applicative m, HasSqlite m) => Bool -> EventId ->
-  m (Event, Map PlayerId (PlayerSummary PlayerId))
+generateTournamentSummary ::
+  (MonadFail m, HasSqlite m) =>
+  Bool -> EventId -> m (Event, Map PlayerId (PlayerSummary PlayerId))
 generateTournamentSummary save eventId = do
-  Just event   <- getEventById eventId
+  Just event <- getEventById eventId
   previousLaws <- getLawsForEvent True eventId
   matches      <- fmap Map.elems $ getMatchesByEventId eventId
 

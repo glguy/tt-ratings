@@ -35,8 +35,9 @@ matchEntryPage ::
   Text {- ^ initial wins        -} ->
   Text {- ^ initial loser  text -} ->
   Text {- ^ initial losses text -} ->
+  Bool {- ^ offer to create     -} ->
   m Html
-matchEntryPage err w wins l losses =
+matchEntryPage err w wins l losses offerCreate =
   do now <- liftIO getZonedTime
      let today = localDay (zonedTimeToLocalTime now)
          tz    = zonedTimeZone now
@@ -45,13 +46,13 @@ matchEntryPage err w wins l losses =
      ms <- case mb of
              Nothing            -> return Map.empty
              Just eventId       -> getMatchesByEventId eventId
-     namedMatches <- maybe (fail "unknown player id") return
+     namedMatches <- maybe (error "unknown player id") return
                    $ (traverse . traverse) (flip Map.lookup ps) ms
-     return $ thePage err w wins l losses (sort (Map.elems ps))
+     return $ thePage err w wins l losses (sort (Map.elems ps)) offerCreate
             $ formatMatches tz today namedMatches
 
-thePage :: Maybe Text -> Text -> Text -> Text -> Text -> [Player] -> Html -> Html
-thePage err w wins l losses ps table = [shamlet|
+thePage :: Maybe Text -> Text -> Text -> Text -> Text -> [Player] -> Bool -> Html -> Html
+thePage err w wins l losses ps offerCreate table = [shamlet|
 <html lang=en>
   <head>
     ^{metaTags}
@@ -75,7 +76,8 @@ thePage err w wins l losses ps table = [shamlet|
         game#
         <span #lossesPlural>s
         <br>
-        <input type=submit #submit value="Save Match">
+        <input type=hidden name=create value=#{offerCreate}>
+        <input type=submit #submit value=#{submitText}>
         <datalist #players>
           $forall p <- ps
             <option value=#{view playerName p}>
@@ -83,6 +85,8 @@ thePage err w wins l losses ps table = [shamlet|
       <div #errorMessage>#{errMsg}
     ^{table}
 |]
+  where
+    submitText = if offerCreate then "Confirm New Players" else "Save Match"
 
 
 formatMatch :: TimeZone -> Int -> MatchId -> Match Player -> Html
@@ -94,14 +98,21 @@ formatMatch tz i (MatchId mid) match = [shamlet|
     <td>
       <form .deleteform action="/matchop" method=post>
         <input type=hidden name=matchId value=#{show mid}>
-        <input .deletebutton type=submit name=action value="copy">
-        <input .deletebutton type=submit name=action value="upset">
         <input .deletebutton type=submit name=action value="delete">
+        ^{extraActions}
 |]
   where
   t = view (matchTime   . to (formatTime defaultTimeLocale "%X" . utcToLocalTime tz)) match
   w = view (matchWinner . playerName) match
   l = view (matchLoser  . playerName) match
+
+  extraActions
+    | i == 0 =
+    [shamlet|
+        <input .deletebutton type=submit name=action value="copy">
+        <input .deletebutton type=submit name=action value="swapped">
+    |]
+    | otherwise = [shamlet| |]
 
 formatMatches :: TimeZone -> Day -> Map MatchId (Match Player) -> Html
 formatMatches tz d xs

@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Output.TournamentSummary where
 
-import Control.Lens
+import Control.Lens ( itoList, folded, sumOf, view, At(at) )
 import Data.Foldable (toList)
 import Data.Function (on)
 import Data.List (sortBy, elemIndex)
@@ -10,17 +10,17 @@ import Data.Map (Map)
 import Data.Maybe (fromJust)
 import Data.Time.Calendar (Day)
 import Data.Ord (comparing)
-import NewTTRS.Law
-import NewTTRS.Outcome
-import NewTTRS.Tournament
+import NewTTRS.Law ( Law(lawStddev, lawMean), lawScore, chanceToWin )
+import NewTTRS.Outcome ( outcomeWins, outcomeLosses )
+import NewTTRS.Tournament ( PlayerSummary, summaryInitialLaw, summaryFinalLaw, degradeLaw, summaryMatches, summaryOutcome, summaryAdjustedLaw, summaryMeanChange, summaryStddevChange )
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
 
-import DataStore
-import Event
-import Output.Common
-import Output.Formatting
-import Player
+import DataStore ( PlayerId )
+import Event ( Event, eventDay )
+import Output.Common ( playerLink, metaTags, navigationLinks, graphInclude, formatDelta )
+import Output.Formatting ( formatLongDay, showRound )
+import Player ( Player )
 
 tournamentColumns :: Int
 tournamentColumns = 2

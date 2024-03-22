@@ -1,20 +1,20 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Output.Totals where
 
-import Control.Lens
+import Control.Lens ( view, non, At(at) )
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Maybe (fromJust)
 import Data.Ord (comparing)
-import Data.Ratio
+import Data.Ratio ( (%) )
 import Data.Time.Calendar (Day)
-import NewTTRS.Law
+import NewTTRS.Law ( Law, lawScore )
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
 
-import DataStore
-import Output.Common
-import Player
+import DataStore ( PlayerId )
+import Output.Common ( playerLink, metaTags, navigationLinks )
+import Player ( Player )
 
 tournamentColumns :: Int
 tournamentColumns = 2

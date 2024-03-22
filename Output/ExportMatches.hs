@@ -1,14 +1,13 @@
 module Output.ExportMatches where
 
-import Control.Applicative
-import Control.Lens
-import Data.Traversable
+import Control.Lens ( view, _Wrapping )
+import Data.Traversable ( for )
 import Data.Int (Int64)
-import NewTTRS.Match
+import NewTTRS.Match ( matchLoser, matchWinner )
 import qualified Data.Map as Map
 
-import DataStore
-import Event
+import DataStore ( PlayerId(PlayerId), getEvents, getMatchesByEventId )
+import Event ( eventDay )
 
 import Snap.Snaplet.SqliteSimple
 

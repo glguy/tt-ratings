@@ -1,19 +1,19 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Output.Players where
 
-import Control.Lens
+import Control.Lens ( itoList, view, Field3(_3) )
 import Data.List (sortBy)
 import Data.Map (Map)
 import Data.Ord (comparing)
-import Data.Time.Calendar
-import NewTTRS.Law
+import Data.Time.Calendar ( Day )
+import NewTTRS.Law ( Law(lawStddev, lawMean), lawScore )
 import Text.Hamlet (Html, shamlet)
 import qualified Data.Map as Map
 
-import DataStore
-import Output.Common
-import Output.Formatting
-import Player
+import DataStore ( PlayerId )
+import Output.Common ( playerLink, metaTags, navigationLinks, graphInclude )
+import Output.Formatting ( formatShortDay, formatLongDay, showRound )
+import Player ( Player )
 
 playersHtml :: Day -> Map PlayerId (Player,Day,Law) -> Html
 playersHtml day laws = [shamlet|

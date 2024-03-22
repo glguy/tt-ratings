@@ -87,10 +87,11 @@ matchPostHandler = do
   winsText <- getParam' "wins"
   loser  <- getParam' "loser"
   lossesText <- getParam' "losses"
+  create <- ("True"==) <$> getParam' "create"
 
   let m `check` e = maybe (failure e) return =<< m
       failure txt = do
-            sendHtml   =<< matchEntryPage (Just txt) winner winsText loser lossesText
+            sendHtml   =<< matchEntryPage (Just txt) winner winsText loser lossesText True
             finishWith =<< getResponse
 
   let parseOutcome txt =
@@ -109,8 +110,8 @@ matchPostHandler = do
        )
     (failure "Invalid outcomes")
 
-  winnerId <- getPlayerIdByName winner `check` "Unknown winner"
-  loserId  <- getPlayerIdByName loser  `check` "Unknown loser"
+  winnerId <- getPlayerIdByName create winner `check` "Unknown winner"
+  loserId  <- getPlayerIdByName create loser  `check` "Unknown loser"
   saveMatch winnerId wins loserId losses
   redirect "/"
 
@@ -124,7 +125,7 @@ matchopPostHandler = do
   case action of
     "delete"    -> deleteMatchHandler    matchId
     "copy"      -> duplicateMatchHandler matchId
-    "upset"     -> upsetMatchHandler     matchId
+    "swapped"   -> upsetMatchHandler     matchId
     _           -> fail "Unknown action"
 
 duplicateMatchHandler :: MatchId -> Handler App App ()
@@ -232,7 +233,7 @@ curvesHandler = do
 
 
 defaultHandler :: Handler App App ()
-defaultHandler = sendHtml =<< matchEntryPage Nothing "" "1" "" "0"
+defaultHandler = sendHtml =<< matchEntryPage Nothing "" "1" "" "0" False
 
 timeToEventDay :: UTCTime -> IO Day
 timeToEventDay time = fmap (localDay . zonedTimeToLocalTime) (utcToLocalZonedTime time)
@@ -281,7 +282,7 @@ getParam' :: MonadSnap m => Text -> m Text
 getParam' name = do
   mb <- getParam $ Enc.encodeUtf8 name
   case mb of
-    Nothing -> fail ("Missing parameter: " ++ show name)
+    Nothing -> error ("Missing parameter: " ++ show name)
     Just x  -> return $ Enc.decodeUtf8 x
 
 getOptParam :: MonadSnap m => Text -> m (Maybe Text)
@@ -293,8 +294,8 @@ getNumParam name = do
    case decimal p of
      Right (n,rest)
        | Text.null rest -> return n
-       | otherwise      -> fail "bad number"
-     Left err -> fail err
+       | otherwise      -> error "bad number"
+     Left err -> error err
 
 
 --------------------------------------------------------------------------------
@@ -302,4 +303,4 @@ getNumParam name = do
 
 
 onNothing :: Monad m => m (Maybe a) -> String -> m a
-onNothing m str = maybe (fail str) return =<< m
+onNothing m str = maybe (error str) return =<< m

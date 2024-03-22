@@ -6,15 +6,17 @@ import NewTTRS.Law
 import Text.Hamlet
 import qualified Data.Map as Map
 
-import Event
-import Output.Formatting
-import Output.Common
-import DataStore
-import Player
+import Event ( eventDay )
+import Output.Formatting ( formatShortDay, showRound )
+import Output.Common ( mkEventUrl, metaTags, navigationLinks, graphInclude )
+import DataStore ( PlayerId, getPlayerById, getLawsForPlayer )
+import Player ( playerName )
 
-import Snap.Snaplet.SqliteSimple
+import Snap.Snaplet.SqliteSimple ( HasSqlite )
 
-playerPage :: (Functor m, HasSqlite m) => PlayerId -> m Html
+playerPage ::
+  (MonadFail m, HasSqlite m) =>
+  PlayerId -> m Html
 playerPage playerId = do
    Just player <- getPlayerById playerId
    events <- getLawsForPlayer playerId

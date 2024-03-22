@@ -37,7 +37,22 @@ executable tt-server
                        snaplet-sqlite-simple,
                        snap-server,
                        snap-core,
-                       snap >= 0.14 && < 0.15,
+                       snap,
                        aeson,
                        bytestring,
                        newttrs
+  other-modules:
+    DataStore
+    Event
+    LawSerialization
+    MatchEntry
+    Output.Common
+    Output.Events
+    Output.ExportMatches
+    Output.Formatting
+    Output.Player
+    Output.Players
+    Output.Totals
+    Output.TournamentSummary
+    Player
+    TournamentCompiler

@@ -1,31 +1,33 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeOperators #-}
 
 module DataStore where
 
-import Event
-import Player
-import LawSerialization
+import Event ( Event(..) )
+import Player ( Player(..) )
+import LawSerialization ( serializeLaw, deserializeLaw )
 
-import NewTTRS.Law
-import NewTTRS.Match
+import NewTTRS.Law ( Law(lawStddev, lawMean) )
+import NewTTRS.Match ( Match(..) )
 
-import Control.Applicative
-import Control.Lens
+import Control.Applicative ( Alternative(empty) )
+import Control.Lens ( makeWrapped )
 import Control.Monad (liftM)
 import Data.Int (Int64)
 import Data.Map (Map)
 import Data.Maybe (catMaybes, listToMaybe)
 import Data.Text (Text)
-import Data.Time
+import Data.Time ( Day )
 import Data.Traversable (for)
 import qualified Database.SQLite.Simple as Sqlite
-import Database.SQLite.Simple.FromField
-import Database.SQLite.Simple.ToField
+import Database.SQLite.Simple.FromField ( FromField(..) )
+import Database.SQLite.Simple.ToField ( ToField(..) )
 import Snap.Snaplet.SqliteSimple
 import qualified Data.Map as Map
 
@@ -59,7 +61,7 @@ getLatestEventId :: HasSqlite m => m EventId
 getLatestEventId = do
   do xs <- query_ "SELECT eventId FROM event ORDER BY eventDay DESC LIMIT 1"
      case xs of
-       []       -> fail "No events in system"
+       []       -> error "No events in system"
        Only x:_ -> return x
 
 getEventIdByDay :: HasSqlite m => Day -> m (Maybe EventId)
@@ -122,13 +124,14 @@ addPlayer Player{..} =
   do execute "INSERT INTO player (playerName) VALUES (?)" (Only _playerName)
      PlayerId `liftM` lastInsertRowId
 
-getPlayerIdByName :: HasSqlite m => Text -> m (Maybe PlayerId)
-getPlayerIdByName name =
+getPlayerIdByName :: HasSqlite m => Bool -> Text -> m (Maybe PlayerId)
+getPlayerIdByName create name =
   do xs <- query "SELECT playerId FROM player WHERE playerName = ?"
                     (Only name)
-     return $! case xs of
-       [] -> Nothing
-       Only x : _ -> x
+     case xs of
+       [] | create -> Just <$> addPlayer Player{ _playerName = name }
+          | otherwise -> pure Nothing
+       Only x : _ -> pure x
 
 getPlayerById :: HasSqlite m => PlayerId -> m (Maybe Player)
 getPlayerById playerId =
@@ -207,10 +210,6 @@ newtype EventId  = EventId  Int64 deriving (Read, Show, Eq, Ord)
 newtype PlayerId = PlayerId Int64 deriving (Read, Show, Eq, Ord)
 newtype MatchId  = MatchId  Int64 deriving (Read, Show, Eq, Ord)
 
-makeWrapped ''EventId
-makeWrapped ''PlayerId
-makeWrapped ''MatchId
-
 instance ToField EventId  where toField (EventId  i) = toField i
 instance ToField PlayerId where toField (PlayerId i) = toField i
 instance ToField MatchId  where toField (MatchId  i) = toField i
@@ -221,10 +220,10 @@ instance FromField MatchId  where fromField = fmap MatchId . fromField
 
 instance FromRow PlayerId   where fromRow = PlayerId <$> field
 
-instance FromRow Law        where
+instance FromRow Law where
   fromRow = do dat <- field
                case deserializeLaw dat of
-                 Nothing -> fail "bad law data"
+                 Nothing -> empty
                  Just law -> return law
 
 instance FromRow Player where
@@ -240,3 +239,7 @@ instance FromRow p => FromRow (Match p) where
 instance FromRow Event where
   fromRow = do _eventDay      <- field
                return Event {..}
+
+makeWrapped ''EventId
+makeWrapped ''PlayerId
+makeWrapped ''MatchId
